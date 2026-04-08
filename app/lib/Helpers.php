@@ -147,6 +147,90 @@ function public_url(string $path): string
     return ($basePath === '' ? '' : $basePath) . '/' . ltrim($path, '/');
 }
 
+function public_url_candidates(string $path): array
+{
+    $normalizedPath = ltrim(trim($path), '/');
+
+    if ($normalizedPath === '') {
+        return [];
+    }
+
+    $normalizedPath = preg_replace('#^public/#', '', $normalizedPath) ?? $normalizedPath;
+    $basePath = app_base_path();
+    $prefix = $basePath === '' ? '' : $basePath;
+
+    $candidates = [
+        $prefix . '/' . $normalizedPath,
+    ];
+
+    if (!str_starts_with($normalizedPath, 'public/')) {
+        $candidates[] = $prefix . '/public/' . $normalizedPath;
+    }
+
+    return array_values(array_unique($candidates));
+}
+
+function request_headers_normalized(): array
+{
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        if (is_array($headers)) {
+            return array_change_key_case($headers, CASE_LOWER);
+        }
+    }
+
+    $headers = [];
+
+    foreach ($_SERVER as $key => $value) {
+        if (!str_starts_with($key, 'HTTP_')) {
+            continue;
+        }
+
+        $normalized = strtolower(str_replace('_', '-', substr($key, 5)));
+        $headers[$normalized] = (string) $value;
+    }
+
+    return $headers;
+}
+
+function momo_callback_signature(string $reference): string
+{
+    return hash_hmac('sha256', $reference, (string) app_config('momo.callback_secret', ''));
+}
+
+function pagination_params(int $page, int $perPage): array
+{
+    $page = max(1, $page);
+    $perPage = max(1, $perPage);
+
+    return [
+        'page' => $page,
+        'per_page' => $perPage,
+        'limit' => $perPage,
+        'offset' => ($page - 1) * $perPage,
+    ];
+}
+
+function pagination_meta(int $page, int $perPage, int $total): array
+{
+    $page = max(1, $page);
+    $perPage = max(1, $perPage);
+    $total = max(0, $total);
+    $totalPages = max(1, (int) ceil($total / $perPage));
+    $page = min($page, $totalPages);
+
+    return [
+        'page' => $page,
+        'per_page' => $perPage,
+        'total' => $total,
+        'total_pages' => $totalPages,
+        'has_previous' => $page > 1,
+        'has_next' => $page < $totalPages,
+        'previous_page' => $page > 1 ? $page - 1 : 1,
+        'next_page' => $page < $totalPages ? $page + 1 : $totalPages,
+    ];
+}
+
 function storage_path(string $path = ''): string
 {
     $base = BASE_PATH . '/storage';
@@ -161,6 +245,24 @@ function storage_path(string $path = ''): string
 function old(string $key, string $default = ''): string
 {
     return e(Session::getOldInput($key, $default));
+}
+
+function normalize_offline_terms_text(?string $text): string
+{
+    $value = trim((string) $text);
+
+    if ($value === '') {
+        return $value;
+    }
+
+    $platformName = trim((string) app_config('name', 'the platform'));
+    $needle = ' does not process, collect, store, or guarantee';
+
+    if ($platformName !== '' && !str_contains($value, $platformName) && str_contains($value, $needle)) {
+        $value = str_replace($needle, ' ' . $platformName . $needle, $value);
+    }
+
+    return preg_replace('/\s{2,}/', ' ', $value) ?? $value;
 }
 
 function old_value(string $key, mixed $default = ''): string
@@ -218,6 +320,31 @@ function format_money(float|int|string|null $amount): string
     return moneyRwf($amount);
 }
 
+function getUserPlan(int $userId): array
+{
+    return PlanFeatureAccess::getUserPlan($userId);
+}
+
+function canApplyToJob(int $userId): array
+{
+    return PlanFeatureAccess::canApplyToJob($userId);
+}
+
+function incrementApplicationCount(int $userId): void
+{
+    PlanFeatureAccess::incrementApplicationCount($userId);
+}
+
+function resetDailyLimitsIfNeeded(int $userId): array
+{
+    return PlanFeatureAccess::resetDailyLimitsIfNeeded($userId);
+}
+
+function getJobVisibilityTime(array $plan, ?string $jobCreatedAt = null): ?string
+{
+    return PlanFeatureAccess::getJobVisibilityTime($plan, $jobCreatedAt);
+}
+
 function dateFmt(?string $value, string $fallback = 'Not specified'): string
 {
     $value = trim((string) $value);
@@ -241,70 +368,102 @@ function format_datetime(?string $value, string $fallback = 'Not specified'): st
     return dateFmt($value, $fallback);
 }
 
-function pricing_plans(): array
+function session_idle_timeout_seconds(): int
 {
-    return [
-        'starter' => [
-            'id' => 'starter',
-            'name' => 'Starter Coordination',
-            'amount' => 15000,
-            'billing_label' => 'One-time payment',
-            'description' => 'For one straightforward request that needs fast, professional coordination.',
-            'badge' => 'Best for first-time clients',
-            'highlighted' => false,
-            'cta' => 'Pay for Starter',
-            'features' => [
-                'One assisted task request',
-                'Clear pricing review before matching',
-                'Booking follow-up inside the platform',
-            ],
-        ],
-        'growth' => [
-            'id' => 'growth',
-            'name' => 'Priority Match',
-            'amount' => 35000,
-            'billing_label' => 'One-time payment',
-            'description' => 'For recurring households or busy teams that want quicker turnaround and tighter follow-up.',
-            'badge' => 'Most practical',
-            'highlighted' => true,
-            'cta' => 'Pay for Priority',
-            'features' => [
-                'Priority review of your request',
-                'Faster shortlist coordination',
-                'One follow-up support window after booking',
-            ],
-        ],
-        'scale' => [
-            'id' => 'scale',
-            'name' => 'Team Support',
-            'amount' => 90000,
-            'billing_label' => 'One-time payment',
-            'description' => 'For offices, hosts, and operators managing several moving parts at once.',
-            'badge' => 'For business use',
-            'highlighted' => false,
-            'cta' => 'Pay for Team Support',
-            'features' => [
-                'Multi-request coordination for one cycle',
-                'Priority communication window',
-                'Concise post-booking handoff summary',
-            ],
-        ],
+    return max(60, (int) app_config('session.idle_timeout_seconds', 900));
+}
+
+function session_presence_window_seconds(): int
+{
+    return max(60, (int) app_config('session.presence_window_seconds', 300));
+}
+
+function session_heartbeat_interval_seconds(): int
+{
+    return max(15, (int) app_config('session.heartbeat_interval_seconds', 60));
+}
+
+function is_recent_datetime(?string $value, int $windowSeconds): bool
+{
+    $value = trim((string) $value);
+
+    if ($value === '' || $windowSeconds < 1) {
+        return false;
+    }
+
+    $timestamp = strtotime($value);
+
+    if ($timestamp === false) {
+        return false;
+    }
+
+    return $timestamp >= (time() - $windowSeconds);
+}
+
+function is_user_online(array $user): bool
+{
+    if ((int) ($user['is_active'] ?? 0) !== 1) {
+        return false;
+    }
+
+    return is_recent_datetime((string) ($user['last_seen_at'] ?? ''), session_presence_window_seconds());
+}
+
+function request_ip(): string
+{
+    $headers = [
+        'HTTP_CF_CONNECTING_IP',
+        'HTTP_X_FORWARDED_FOR',
+        'REMOTE_ADDR',
     ];
+
+    foreach ($headers as $header) {
+        $value = trim((string) ($_SERVER[$header] ?? ''));
+
+        if ($value === '') {
+            continue;
+        }
+
+        if ($header === 'HTTP_X_FORWARDED_FOR') {
+            $parts = array_map('trim', explode(',', $value));
+            $value = (string) ($parts[0] ?? '');
+        }
+
+        if ($value !== '') {
+            return mb_substr($value, 0, 120);
+        }
+    }
+
+    return 'unknown';
 }
 
-function pricing_plan(?string $planId): ?array
+function request_user_agent(): string
 {
-    $planId = trim((string) $planId);
-    $plans = pricing_plans();
+    $userAgent = trim((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
 
-    return $plans[$planId] ?? null;
+    return $userAgent !== '' ? mb_substr($userAgent, 0, 255) : 'unknown';
 }
 
-function payments_enabled(): bool
+function agreement_status_label(string $status): string
 {
-    $secretKey = trim((string) app_config('stripe.secret_key', ''));
-    $allowUrlFopen = strtolower(trim((string) ini_get('allow_url_fopen')));
-    $hasTransport = function_exists('curl_init') || in_array($allowUrlFopen, ['1', 'on', 'true'], true);
+    return match ($status) {
+        'pending_acceptance' => 'Pending acceptance',
+        'accepted' => 'Accepted',
+        'cancelled' => 'Cancelled',
+        'disputed' => 'Disputed',
+        'draft' => 'Draft',
+        default => ucfirst(str_replace('_', ' ', $status)),
+    };
+}
 
-    return $secretKey !== '' && $hasTransport;
+function dispute_type_label(string $type): string
+{
+    return match ($type) {
+        'non_payment' => 'Non-payment',
+        'client_unavailable' => 'Client unavailable',
+        'tasker_no_show' => 'Tasker no-show',
+        'scope_change' => 'Scope change',
+        'unsafe' => 'Unsafe situation',
+        default => ucfirst(str_replace('_', ' ', $type)),
+    };
 }

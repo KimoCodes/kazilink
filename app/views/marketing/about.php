@@ -3,9 +3,9 @@
         <div class="hero">
             <span class="eyebrow">About Kazilink</span>
             <h1>A cleaner, calmer way to coordinate local services.</h1>
-            <p class="page-intro">Kazilink is for people who want a service marketplace to feel professional from the first click: clear navigation, practical copy, consistent styling, reliable task flows, and a direct way to pay when they are ready.</p>
+            <p class="page-intro">Kazilink is for people who want a service marketplace to feel professional from the first click: clear navigation, practical copy, reliable task flows, and a hiring agreement that proves the tasker was hired through the platform.</p>
             <div class="hero-actions">
-                <a class="button" href="<?= e(url_for('marketing/pricing')) ?>">See pricing</a>
+                <a class="button" href="<?= e(url_for('marketing/pricing')) ?>">See how protection works</a>
                 <a class="button button-secondary" href="<?= e(url_for('marketing/contact')) ?>">Talk to us</a>
             </div>
         </div>
@@ -28,8 +28,8 @@
                 <p class="muted">Shared tokens, repeated card patterns, and stronger page structure make the site feel like one product instead of disconnected screens.</p>
             </article>
             <article class="feature-card">
-                <h3>Payment without improvisation</h3>
-                <p class="muted">Stripe Checkout keeps card entry on a hosted surface while your app owns the surrounding plan selection and post-payment messaging.</p>
+                <h3>Protection without escrow</h3>
+                <p class="muted">The platform does not process client-to-tasker job payments. Instead, it uses MTN MoMo for subscription access and keeps job terms, offline payment expectations, and dispute evidence clearer and easier to trust.</p>
             </article>
         </div>
     </section>
@@ -46,14 +46,14 @@
                 <span class="timeline-step">1</span>
                 <div>
                     <h3>Understand the offer</h3>
-                    <p class="muted">Visitors land on a homepage that explains value, service categories, pricing, and support in a clear sequence.</p>
+                    <p class="muted">Visitors land on a homepage that explains value, service categories, offline payment expectations, and support in a clear sequence.</p>
                 </div>
             </article>
             <article class="timeline-item">
                 <span class="timeline-step">2</span>
                 <div>
                     <h3>Choose the right path</h3>
-                    <p class="muted">They can create an account, browse tasks, ask for help, or move directly to pricing based on their intent.</p>
+                    <p class="muted">They can create an account, browse tasks, ask for help, or learn how the hiring agreement protects both sides.</p>
                 </div>
             </article>
             <article class="timeline-item">
@@ -76,15 +76,15 @@
         <div class="faq-list">
             <details class="faq-item">
                 <summary>Is this a full custom build or a marketplace MVP?</summary>
-                <p>It remains a focused marketplace MVP, but the marketing layer and payment path now feel more launch-ready and professional.</p>
+                <p>It remains a focused marketplace MVP, but the matching flow, agreement record, and dispute trail now feel much more launch-ready and operationally credible.</p>
             </details>
             <details class="faq-item">
-                <summary>Can I change the plans later?</summary>
-                <p>Yes. Plan names, prices, and descriptions live in helper configuration so they can be updated without reworking the page structure.</p>
+                <summary>Does the platform take payment online?</summary>
+                <p>Only subscriptions are paid online through MTN MoMo. Clients and taskers still arrange job payment offline while the platform focuses on matching, hiring records, and dispute evidence.</p>
             </details>
             <details class="faq-item">
-                <summary>What happens after a successful payment?</summary>
-                <p>The user lands on a success page that can verify the Checkout session. The next production step is typically webhook-based fulfillment.</p>
+                <summary>What happens after a tasker is hired?</summary>
+                <p>The platform creates a hiring agreement, both parties accept it digitally, and the record can later be printed or used during a dispute.</p>
             </details>
         </div>
     </section>

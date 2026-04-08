@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 final class MarketingController
 {
+    private Plan $plans;
+
+    public function __construct()
+    {
+        $this->plans = new Plan();
+    }
+
     public function about(): string
     {
         return View::render('marketing/about', [
             'pageTitle' => 'About',
-            'plans' => array_values(pricing_plans()),
-            'paymentsEnabled' => payments_enabled(),
         ]);
     }
 
@@ -17,8 +22,7 @@ final class MarketingController
     {
         return View::render('marketing/pricing', [
             'pageTitle' => 'Pricing',
-            'plans' => array_values(pricing_plans()),
-            'paymentsEnabled' => payments_enabled(),
+            'plans' => $this->plans->allActive(),
         ]);
     }
 
@@ -42,6 +46,7 @@ final class MarketingController
         $redirectRoute = $this->safeMarketingRoute((string) ($_POST['redirect_route'] ?? 'home/index'));
         $input = Validator::trim($_POST);
         $input['email'] = mb_strtolower(trim((string) ($input['email'] ?? '')));
+        $input['audience'] = trim((string) ($input['audience'] ?? 'client'));
 
         if (trim((string) ($input['company_website'] ?? '')) !== '') {
             Session::flash('success', 'Thanks. You are on the list.');
@@ -55,13 +60,35 @@ final class MarketingController
             redirect($redirectRoute);
         }
 
-        $saved = LeadCapture::append('newsletter', [
+        if (LeadCapture::newsletterAlreadySubscribed((string) $input['email'])) {
+            Session::flash('success', 'You are already on the updates list. We will only email you when there is something worth sharing.');
+            redirect($redirectRoute);
+        }
+
+        $audienceMap = [
+            'client' => 'Hiring clients',
+            'tasker' => 'Taskers',
+            'partner' => 'Partners',
+        ];
+        $audienceCopyMap = [
+            'client' => 'updates for hiring clients',
+            'tasker' => 'updates for taskers',
+            'partner' => 'partner updates',
+        ];
+        $audienceLabel = $audienceMap[(string) $input['audience']] ?? 'Community';
+        $audienceSuccessCopy = $audienceCopyMap[(string) $input['audience']] ?? 'platform updates';
+        $subscription = [
             'email' => (string) $input['email'],
             'audience' => normalize_whitespace((string) ($input['audience'] ?? '')),
-        ]);
+            'audience_label' => $audienceLabel,
+            'source_route' => $redirectRoute,
+            'consent_text' => 'Subscriber asked to receive launch notes, product updates, and practical service tips.',
+        ];
+        $saved = LeadCapture::append('newsletter', $subscription);
+        $notified = LeadCapture::deliverNewsletterNotification($subscription);
 
-        Session::flash($saved ? 'success' : 'warning', $saved
-            ? 'Thanks. We will share product and launch updates with you.'
+        Session::flash(($saved || $notified) ? 'success' : 'warning', ($saved || $notified)
+            ? 'You are in. We will send occasional ' . $audienceSuccessCopy . ', launch notes, and practical tips.'
             : 'Your email looks good, but we could not save it right now. Please try again in a moment.');
 
         redirect($redirectRoute);
@@ -109,16 +136,19 @@ final class MarketingController
             ]);
         }
 
-        $saved = LeadCapture::append('contact', [
+        $submission = [
             'name' => (string) $input['name'],
             'email' => (string) $input['email'],
             'company' => (string) $input['company'],
             'topic' => (string) $input['topic'],
             'message' => (string) $input['message'],
-        ]);
+        ];
+
+        $saved = LeadCapture::append('contact', $submission);
+        $emailed = LeadCapture::deliverContactEmail($submission);
 
         Session::clearOldInput();
-        Session::flash($saved ? 'success' : 'warning', $saved
+        Session::flash(($saved || $emailed) ? 'success' : 'warning', ($saved || $emailed)
             ? 'Thanks for reaching out. We will follow up soon.'
             : 'Your message looks good, but we could not save it right now. Please try again shortly.');
         redirect('marketing/contact');

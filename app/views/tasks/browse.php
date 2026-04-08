@@ -1,4 +1,9 @@
 <div class="container">
+    <?php
+    $viewerPlan = is_array($viewerPlan ?? null) ? $viewerPlan : null;
+    $applicationAccess = is_array($applicationAccess ?? null) ? $applicationAccess : null;
+    $pagination = is_array($pagination ?? null) ? $pagination : ['total' => count($tasks), 'page' => 1, 'total_pages' => 1];
+    ?>
     <section class="panel panel-subtle filter-panel">
         <div>
             <span class="eyebrow">Task Discovery</span>
@@ -153,12 +158,30 @@
         <div class="task-results-toolbar">
             <div>
                 <h2 class="task-results-title">Available tasks</h2>
-                <p class="section-intro task-results-intro">Showing <?= count($tasks) ?> open task<?= count($tasks) === 1 ? '' : 's' ?></p>
+                <p class="section-intro task-results-intro">Showing <?= count($tasks) ?> of <?= e((string) ($pagination['total'] ?? count($tasks))) ?> open task<?= (int) ($pagination['total'] ?? count($tasks)) === 1 ? '' : 's' ?></p>
             </div>
             <div>
-                <span class="pill"><?= count($tasks) ?> Result<?= count($tasks) === 1 ? '' : 's' ?></span>
+                <span class="pill"><?= e((string) ($pagination['total'] ?? count($tasks))) ?> Result<?= (int) ($pagination['total'] ?? count($tasks)) === 1 ? '' : 's' ?></span>
             </div>
         </div>
+
+        <?php if ($viewerPlan !== null): ?>
+            <div class="subscription-plan-banner">
+                <div>
+                    <span class="sidebar-item-label">Discovery plan</span>
+                    <div class="task-summary-metric-row">
+                        <strong><?= e((string) $viewerPlan['name']) ?></strong>
+                        <span><?= e((string) ($applicationAccess['remaining'] ?? 0)) ?> application<?= (int) ($applicationAccess['remaining'] ?? 0) === 1 ? '' : 's' ?> left today</span>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <?php if (!empty($viewerPlan['badge_name'])): ?>
+                        <span class="subscription-tier-badge"><?= e((string) $viewerPlan['badge_name']) ?></span>
+                    <?php endif; ?>
+                    <a class="button button-secondary button-small" href="<?= e(url_for('subscriptions/index')) ?>">Upgrade plan</a>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if ($tasks === []): ?>
             <?php
@@ -187,6 +210,12 @@
                                     <span>
                                         📍 <?= e((string) $task['city']) ?>, <?= e((string) $task['country']) ?>
                                     </span>
+                                    <span>•</span>
+                                    <span><?= e((string) $task['client_plan_name']) ?> visibility</span>
+                                    <?php if (!empty($task['client_badge_name'])): ?>
+                                        <span>•</span>
+                                        <span class="subscription-tier-badge subscription-tier-badge-inline"><?= e((string) $task['client_badge_name']) ?></span>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <?php $status = 'open'; $label = 'Open'; require BASE_PATH . '/app/views/partials/status-badge.php'; ?>
@@ -212,6 +241,11 @@
                     </article>
                 <?php endforeach; ?>
             </div>
+            <?php
+            $paginationRoute = 'tasks/browse';
+            $paginationParams = array_filter($filters, static fn (mixed $value): bool => $value !== '' && $value !== 0);
+            require BASE_PATH . '/app/views/partials/pagination.php';
+            ?>
         <?php endif; ?>
     </section>
 </div>

@@ -5,10 +5,12 @@ declare(strict_types=1);
 final class Booking
 {
     private PDO $db;
+    private HiringAgreement $agreements;
 
     public function __construct()
     {
         $this->db = Database::connection();
+        $this->agreements = new HiringAgreement($this->db);
     }
 
     public function createFromBid(array $bid): int
@@ -91,6 +93,8 @@ final class Booking
                 'id' => $lockedBid['task_id'],
             ]);
 
+            $this->agreements->createDraftForBooking($bookingId);
+
             $this->db->commit();
 
             return $bookingId;
@@ -103,7 +107,7 @@ final class Booking
         }
     }
 
-    public function forUser(int $userId, string $role): array
+    public function forUser(int $userId, string $role, int $limit = 25, int $offset = 0): array
     {
         $sql = '
             SELECT
@@ -136,12 +140,33 @@ final class Booking
             $params['user_id'] = $userId;
         }
 
-        $sql .= ' ORDER BY b.booked_at DESC, b.id DESC';
+        $sql .= ' ORDER BY b.booked_at DESC, b.id DESC LIMIT :limit OFFSET :offset';
+
+        $statement = $this->db->prepare($sql);
+        $statement->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
+        $statement->bindValue(':offset', max(0, $offset), PDO::PARAM_INT);
+        $statement->execute($params);
+
+        return $statement->fetchAll();
+    }
+
+    public function countForUser(int $userId, string $role): int
+    {
+        $sql = 'SELECT COUNT(*) AS aggregate FROM bookings b';
+        $params = [];
+
+        if ($role === 'client') {
+            $sql .= ' WHERE b.client_id = :user_id';
+            $params['user_id'] = $userId;
+        } elseif ($role === 'tasker') {
+            $sql .= ' WHERE b.tasker_id = :user_id';
+            $params['user_id'] = $userId;
+        }
 
         $statement = $this->db->prepare($sql);
         $statement->execute($params);
 
-        return $statement->fetchAll();
+        return (int) ($statement->fetch()['aggregate'] ?? 0);
     }
 
     public function findVisibleById(int $bookingId, int $userId, string $role): ?array
@@ -154,6 +179,7 @@ final class Booking
                     bid.amount AS agreed_amount,
                     t.title,
                     t.description,
+                    t.scheduled_for,
                     t.city,
                     t.region,
                     t.country,
@@ -177,6 +203,7 @@ final class Booking
                     bid.amount AS agreed_amount,
                     t.title,
                     t.description,
+                    t.scheduled_for,
                     t.city,
                     t.region,
                     t.country,
@@ -226,6 +253,24 @@ final class Booking
 
             if ($booking['status'] !== 'active') {
                 throw new RuntimeException('Only active bookings can be completed.');
+            }
+
+            $agreementStmt = $this->db->prepare('
+                SELECT id, status
+                FROM hiring_agreements
+                WHERE booking_id = :booking_id
+                LIMIT 1
+                FOR UPDATE
+            ');
+            $agreementStmt->execute(['booking_id' => $bookingId]);
+            $agreement = $agreementStmt->fetch();
+
+            if (!$agreement) {
+                throw new RuntimeException('The booking agreement record is missing.');
+            }
+
+            if ((string) $agreement['status'] !== 'accepted') {
+                throw new RuntimeException('Booking cannot be completed until the agreement is fully accepted.');
             }
 
             $updateBooking = $this->db->prepare('

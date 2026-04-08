@@ -16,82 +16,65 @@ Simple Taskrabbit-style marketplace MVP built with:
 - Client bid acceptance and booking creation
 - Booking-scoped messaging
 - Client completion and review flow
+- Hiring Agreement generation on hire confirmation
+- Dual agreement acceptance with audit logging
+- Public agreement verification
+- Dispute capture for non-payment, no-shows, access issues, and scope changes
 - Admin analytics and user/task moderation
 - Marketing pages for home, about, pricing, and contact
-- Stripe Checkout pricing flow with success/cancel pages
 - Newsletter signup stub and contact form with spam honeypot protection
+- MTN MoMo subscription billing with trials, promos, and admin-managed plans
 
 ## Quick start
 
-1. Copy `.env.example` to `.env`
-2. Create the database
-3. Import schema and seed
-4. Start the PHP server
+1. Create the database
+2. Import schema and seed
+3. Apply the agreement migration if you are updating an older install
+4. Apply the subscription migration if you are enabling billing
+5. Start the PHP server
 
 ```bash
-cp .env.example .env
 mysql -u root -p -e "CREATE DATABASE informal_marketplace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p informal_marketplace < database/schema.sql
 mysql -u root -p informal_marketplace < database/seed.sql
+mysql -u root -p informal_marketplace < database/migration_add_hiring_agreements.sql
+mysql -u root -p informal_marketplace < database/migration_add_subscriptions_momo.sql
 /Applications/XAMPP/xamppfiles/bin/php -S 127.0.0.1:8000 -t public
-```
-
-If your database already exists and you are updating an older local install, run:
-
-```bash
-mysql -u root -p informal_marketplace < database/migration_add_payments.sql
-```
-
-If you already created the first `payments` table version before the booking-payment update, also run:
-
-```bash
-mysql -u root -p informal_marketplace < database/migration_link_payments_to_bookings.sql
 ```
 
 Open:
 
 - `http://127.0.0.1:8000/index.php?route=home/index`
 
-## Stripe setup
+## Payments model
 
-Add these values in `.env` before testing the payment flow:
+- The platform does not process client-to-tasker card, bank, wallet, or cash payments.
+- Clients and taskers arrange payment offline.
+- Platform subscriptions are billed separately through MTN MoMo.
+- The platform's value is matching, hiring records, agreement verification, and dispute evidence.
+- The legacy `payments` table can remain in the database as an unused historical table, but no runtime flow writes to it.
 
-- `APP_URL` should point to the URL where the app is served locally
-- `STRIPE_SECRET_KEY`
-- `STRIPE_PUBLISHABLE_KEY` (reserved for future client-side Stripe work)
-- `STRIPE_WEBHOOK_SECRET` (reserved for future webhook fulfillment)
-- `STRIPE_CURRENCY` defaults to `rwf`
+## Subscription operations
 
-The pricing page starts a Stripe Checkout Session server-side and redirects users to Stripe-hosted checkout. The success page can verify the returned session when Stripe keys are configured.
+- Cron maintenance script: `/Applications/XAMPP/xamppfiles/bin/php /Applications/XAMPP/xamppfiles/htdocs/informal/scripts/subscription_maintenance.php`
+- Suggested cron: `*/15 * * * * /Applications/XAMPP/xamppfiles/bin/php /Applications/XAMPP/xamppfiles/htdocs/informal/scripts/subscription_maintenance.php`
+- Reminder stubs are appended to `storage/submissions/subscription_reminders.jsonl`
+- Grace period is managed in Admin via `admin/settings` and stored in `app_settings.subscription_grace_days`
+- Optional production callback IP allowlist env var: `MOMO_CALLBACK_ALLOWLIST`
 
-## Stripe webhooks
+## Integration tests
 
-Use the webhook route below to confirm payments server-side:
+- Run: `/Applications/XAMPP/xamppfiles/bin/php tests/integration/subscription_flows.php`
+- These tests run inside a DB transaction on the current configured database and roll back when complete.
 
-- `http://127.0.0.1:8000/index.php?route=payments/webhook`
+## Hiring Agreement flow
 
-For local development with the Stripe CLI, a typical flow is:
-
-```bash
-stripe listen --forward-to http://127.0.0.1:8000/index.php?route=payments/webhook
-```
-
-Copy the returned signing secret into `STRIPE_WEBHOOK_SECRET`.
-
-Handled events:
-
-- `checkout.session.completed`
-- `checkout.session.async_payment_succeeded`
-- `checkout.session.async_payment_failed`
-- `checkout.session.expired`
-
-## Completed task payments
-
-Clients can now pay a completed booking directly from the booking detail page or completed-booking cards.
-
-- Route: `payments/booking-checkout`
-- Amount source: accepted bid amount, with task budget as fallback
-- Post-payment return: `payments/success`
+1. Client accepts a bid.
+2. Booking is created.
+3. A draft hiring agreement is generated automatically from the task and booking data.
+4. Client and tasker review and accept the agreement.
+5. Once both accept, the agreement can be printed to PDF and verified publicly by UID.
+6. If something goes wrong, either party can open a dispute attached to the agreement.
 
 ## Lead capture stubs
 
@@ -112,16 +95,15 @@ These are local launch-phase stubs intended to be replaced later with a real ema
 - `marketing/about`
 - `marketing/pricing`
 - `marketing/contact`
-- `payments/webhook`
-- `payments/success`
-- `payments/cancel`
 - `auth/login`
 - `auth/register`
 - `tasks/index`
 - `tasks/browse`
 - `bookings/index`
+- `agreements/review`
+- `agreements/verify`
+- `disputes/show`
 - `admin/dashboard`
-- `admin/payments`
 
 ## Notes
 

@@ -16,6 +16,7 @@ $avatarUrl = !empty($profile['avatar_path']) ? public_url((string) $profile['ava
 $displayName = (string) $profile['full_name'];
 $avatarInitial = strtoupper(substr($displayName !== '' ? $displayName : 'U', 0, 1));
 $profileStats = is_array($profileStats ?? null) ? $profileStats : [];
+$subscriptionPlan = is_array($subscriptionPlan ?? null) ? $subscriptionPlan : null;
 ?>
 <div class="container">
     <section class="panel">
@@ -50,6 +51,9 @@ $profileStats = is_array($profileStats ?? null) ? $profileStats : [];
                     <div class="profile-identity-copy">
                         <div class="button-group">
                             <span class="pill pill-success"><?= e($roleLabel) ?></span>
+                            <?php if (!empty($subscriptionPlan['badge_name'])): ?>
+                                <span class="subscription-tier-badge"><?= e((string) $subscriptionPlan['badge_name']) ?></span>
+                            <?php endif; ?>
                             <?php if ($role === 'tasker'): ?>
                                 <span class="pill pill-info">Visible to clients</span>
                             <?php elseif ($role === 'client'): ?>
@@ -79,6 +83,17 @@ $profileStats = is_array($profileStats ?? null) ? $profileStats : [];
                                 <span class="sidebar-item-label">Country</span>
                                 <div class="sidebar-item-value"><?= !empty($profile['country']) ? e((string) $profile['country']) : 'Rwanda' ?></div>
                             </div>
+                            <?php if ($subscriptionPlan !== null): ?>
+                                <div class="profile-meta-item">
+                                    <span class="sidebar-item-label">Current plan</span>
+                                    <div class="sidebar-item-value">
+                                        <?= e((string) $subscriptionPlan['name']) ?>
+                                        <?php if ((float) ($subscriptionPlan['commission_discount'] ?? 0) > 0): ?>
+                                            <span class="muted">• <?= e(number_format((float) $subscriptionPlan['commission_discount'], 0)) ?>% commission off</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

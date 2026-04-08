@@ -7,9 +7,7 @@ $bookingStatusMap = [
 $status = (string) $booking['status'];
 $label = $bookingStatusMap[$status] ?? ucfirst($status);
 $location = e((string) $booking['city']) . (!empty($booking['region']) ? ', ' . e((string) $booking['region']) : '') . ', ' . e((string) $booking['country']);
-$bookingPayment = $paymentsByBooking[(int) ($booking['id'] ?? 0)] ?? null;
-$paymentStatus = is_array($bookingPayment) ? (string) ($bookingPayment['status'] ?? '') : '';
-$isPaid = $paymentStatus === 'paid';
+$agreement = $agreementsByBooking[(int) ($booking['id'] ?? 0)] ?? null;
 $agreedAmount = (float) ($booking['agreed_amount'] ?? $booking['budget'] ?? 0);
 ?>
 <article class="booking-card">
@@ -52,20 +50,18 @@ $agreedAmount = (float) ($booking['agreed_amount'] ?? $booking['budget'] ?? 0);
 
     <div class="booking-card-footer">
         <div class="booking-card-footer-copy">
-            <span class="muted">Keep messages, status, reviews, and payment tied to this booking.</span>
-            <?php if ($status === 'completed'): ?>
-                <span class="pill <?= $isPaid ? 'pill-success' : 'pill-warning' ?>">
-                    <?= e($isPaid ? 'Paid' : 'Payment pending') ?>
+            <span class="muted">Keep messages, status, agreement records, and issue logs tied to this booking.</span>
+            <?php if (is_array($agreement)): ?>
+                <span class="pill <?= (string) $agreement['status'] === 'accepted' ? 'pill-success' : ((string) $agreement['status'] === 'disputed' ? 'pill-warning' : 'pill-info') ?>">
+                    <?= e(agreement_status_label((string) $agreement['status'])) ?>
                 </span>
             <?php endif; ?>
         </div>
         <div class="button-group">
-            <?php if ($status === 'completed' && !$isPaid && Auth::role() === 'client' && $paymentsEnabled): ?>
-                <form method="post" action="<?= e(url_for('payments/booking-checkout')) ?>">
-                    <?= Csrf::input() ?>
-                    <input type="hidden" name="booking_id" value="<?= e((string) $booking['id']) ?>">
-                    <button type="submit" class="button button-small">Pay now</button>
-                </form>
+            <?php if (is_array($agreement)): ?>
+                <a class="button button-small" href="<?= e(url_for('agreements/review', ['id' => (int) $agreement['id']])) ?>">
+                    Review Agreement
+                </a>
             <?php endif; ?>
             <a class="button button-secondary button-small" href="<?= e(url_for('bookings/show', ['id' => (int) $booking['id']])) ?>">
                 View booking

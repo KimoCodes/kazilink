@@ -5,6 +5,7 @@ declare(strict_types=1);
 final class Message
 {
     private PDO $db;
+    private const LAST_SEEN_SESSION_KEY = '_message_last_seen_by_booking';
 
     public function __construct()
     {
@@ -79,33 +80,12 @@ final class Message
 
     public function countUnreadForUser(int $userId, string $role): int
     {
-        // For simplicity, count messages from other participants in active bookings
-        // In a real app, you'd track read status per message/thread
-        $sql = '
-            SELECT COUNT(*) as count
-            FROM messages m
-            INNER JOIN bookings b ON b.id = m.booking_id
-            WHERE b.status = :status
-              AND m.sender_id != :viewer_id
-        ';
+        $inbox = $this->getInboxForUser($userId, $role, 12);
 
-        $params = [
-            'status' => 'active',
-            'viewer_id' => $userId,
-        ];
-
-        if ($role === 'client') {
-            $sql .= ' AND b.client_id = :participant_id';
-            $params['participant_id'] = $userId;
-        } elseif ($role === 'tasker') {
-            $sql .= ' AND b.tasker_id = :participant_id';
-            $params['participant_id'] = $userId;
-        }
-
-        $statement = $this->db->prepare($sql);
-        $statement->execute($params);
-
-        return (int) $statement->fetch()['count'];
+        return array_sum(array_map(
+            static fn (array $conversation): int => (int) ($conversation['unread_count'] ?? 0),
+            $inbox
+        ));
     }
 
     public function create(array $data): int
@@ -123,48 +103,148 @@ final class Message
         return (int) $this->db->lastInsertId();
     }
 
-    public function getRecentForUser(int $userId, string $role, int $limit = 5): array
+    public function getInboxForUser(int $userId, string $role, int $limit = 8): array
     {
         $sql = '
             SELECT
-                m.id,
-                m.booking_id,
-                m.sender_id,
-                m.body,
-                m.created_at,
-                p.full_name AS sender_name,
                 b.id AS booking_id,
-                t.title AS task_title
-            FROM messages m
-            INNER JOIN profiles p ON p.user_id = m.sender_id
-            INNER JOIN bookings b ON b.id = m.booking_id
+                t.title AS task_title,
+                latest_message.id AS message_id,
+                latest_message.sender_id,
+                latest_message.body,
+                latest_message.created_at,
+                counterpart.full_name AS counterpart_name
+            FROM bookings b
             INNER JOIN tasks t ON t.id = b.task_id
-            WHERE b.status = :status
-              AND m.sender_id != :viewer_id
+            INNER JOIN (
+                SELECT booking_id, MAX(id) AS latest_message_id
+                FROM messages
+                GROUP BY booking_id
+            ) latest ON latest.booking_id = b.id
+            INNER JOIN messages latest_message ON latest_message.id = latest.latest_message_id
         ';
 
         $params = [
             'status' => 'active',
-            'viewer_id' => $userId,
         ];
 
         if ($role === 'client') {
-            $sql .= ' AND b.client_id = :participant_id';
+            $sql .= '
+            INNER JOIN profiles counterpart ON counterpart.user_id = b.tasker_id
+            WHERE b.status = :status
+              AND b.client_id = :participant_id';
             $params['participant_id'] = $userId;
         } elseif ($role === 'tasker') {
-            $sql .= ' AND b.tasker_id = :participant_id';
+            $sql .= '
+            INNER JOIN profiles counterpart ON counterpart.user_id = b.client_id
+            WHERE b.status = :status
+              AND b.tasker_id = :participant_id';
             $params['participant_id'] = $userId;
+        } else {
+            return [];
         }
 
-        $sql .= ' ORDER BY m.created_at DESC LIMIT :limit';
+        $sql .= ' ORDER BY latest_message.created_at DESC LIMIT :limit';
 
         $statement = $this->db->prepare($sql);
-        $statement->bindValue('limit', $limit, PDO::PARAM_INT);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         foreach ($params as $key => $value) {
-            $statement->bindValue($key, $value);
+            $statement->bindValue(':' . $key, $value);
         }
         $statement->execute();
 
-        return $statement->fetchAll();
+        $conversations = $statement->fetchAll();
+
+        $unreadCounts = $this->unreadCountsForBookings(
+            array_map(static fn (array $conversation): int => (int) ($conversation['booking_id'] ?? 0), $conversations),
+            $userId
+        );
+
+        foreach ($conversations as &$conversation) {
+            $conversation['unread_count'] = (int) ($unreadCounts[(int) $conversation['booking_id']] ?? 0);
+        }
+        unset($conversation);
+
+        return $conversations;
+    }
+
+    public function markThreadSeen(int $bookingId, int $messageId): void
+    {
+        if ($bookingId <= 0 || $messageId <= 0) {
+            return;
+        }
+
+        $lastSeenByBooking = Session::get(self::LAST_SEEN_SESSION_KEY, []);
+
+        if (!is_array($lastSeenByBooking)) {
+            $lastSeenByBooking = [];
+        }
+
+        if ($messageId > (int) ($lastSeenByBooking[$bookingId] ?? 0)) {
+            $lastSeenByBooking[$bookingId] = $messageId;
+            Session::put(self::LAST_SEEN_SESSION_KEY, $lastSeenByBooking);
+        }
+    }
+
+    private function countUnreadForConversation(int $bookingId, int $userId): int
+    {
+        $lastSeenByBooking = Session::get(self::LAST_SEEN_SESSION_KEY, []);
+        $lastSeenId = is_array($lastSeenByBooking) ? (int) ($lastSeenByBooking[$bookingId] ?? 0) : 0;
+
+        $statement = $this->db->prepare('
+            SELECT COUNT(*) AS aggregate
+            FROM messages
+            WHERE booking_id = :booking_id
+              AND sender_id != :viewer_id
+              AND id > :last_seen_id
+        ');
+        $statement->execute([
+            'booking_id' => $bookingId,
+            'viewer_id' => $userId,
+            'last_seen_id' => $lastSeenId,
+        ]);
+
+        return (int) ($statement->fetch()['aggregate'] ?? 0);
+    }
+
+    private function unreadCountsForBookings(array $bookingIds, int $userId): array
+    {
+        $normalizedIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $bookingId): int => (int) $bookingId, $bookingIds),
+            static fn (int $bookingId): bool => $bookingId > 0
+        )));
+
+        if ($normalizedIds === []) {
+            return [];
+        }
+
+        $lastSeenByBooking = Session::get(self::LAST_SEEN_SESSION_KEY, []);
+        $conditions = [];
+        $params = ['viewer_id' => $userId];
+
+        foreach ($normalizedIds as $index => $bookingId) {
+            $bookingPlaceholder = 'booking_id_' . $index;
+            $lastSeenPlaceholder = 'last_seen_' . $index;
+            $conditions[] = '(booking_id = :' . $bookingPlaceholder . ' AND id > :' . $lastSeenPlaceholder . ')';
+            $params[$bookingPlaceholder] = $bookingId;
+            $params[$lastSeenPlaceholder] = is_array($lastSeenByBooking) ? (int) ($lastSeenByBooking[$bookingId] ?? 0) : 0;
+        }
+
+        $statement = $this->db->prepare('
+            SELECT booking_id, COUNT(*) AS aggregate
+            FROM messages
+            WHERE sender_id != :viewer_id
+              AND (' . implode(' OR ', $conditions) . ')
+            GROUP BY booking_id
+        ');
+        $statement->execute($params);
+
+        $counts = [];
+
+        foreach ($statement->fetchAll() as $row) {
+            $counts[(int) $row['booking_id']] = (int) $row['aggregate'];
+        }
+
+        return $counts;
     }
 }

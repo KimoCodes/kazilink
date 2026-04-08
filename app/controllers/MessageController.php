@@ -13,6 +13,13 @@ final class MessageController
         $this->messages = new Message();
     }
 
+    public function index(): string
+    {
+        Auth::requireRole(['client', 'tasker']);
+
+        return $this->renderInboxView((int) ($_GET['id'] ?? 0));
+    }
+
     public function poll(): string
     {
         Auth::requireRole(['client', 'tasker']);
@@ -39,6 +46,11 @@ final class MessageController
         $newMessages = $hasAfterId
             ? $this->messages->forBookingAfterId($bookingId, $afterId)
             : $this->messages->forBookingSince($bookingId, $since);
+
+        if ($newMessages !== []) {
+            $latestMessage = $newMessages[array_key_last($newMessages)];
+            $this->messages->markThreadSeen($bookingId, (int) ($latestMessage['id'] ?? 0));
+        }
 
         return json_encode([
             'messages' => $newMessages,
@@ -84,21 +96,64 @@ final class MessageController
                 redirect('messages/thread', ['id' => $bookingId]);
             }
 
-            return View::render('messages/thread', [
-                'pageTitle' => 'Messages',
-                'booking' => $booking,
-                'messages' => $this->messages->forBooking($bookingId),
-                'errors' => Validator::flattenFieldErrors($fieldErrors),
-                'fieldErrors' => $fieldErrors,
-            ]);
+            $messages = $this->messages->forBooking($bookingId);
+            $this->markConversationSeen($bookingId, $messages);
+
+            return $this->renderInboxView(
+                $bookingId,
+                Validator::flattenFieldErrors($fieldErrors),
+                $fieldErrors
+            );
         }
 
-        return View::render('messages/thread', [
-            'pageTitle' => 'Messages',
-            'booking' => $booking,
-            'messages' => $this->messages->forBooking($bookingId),
-            'errors' => [],
-            'fieldErrors' => [],
+        return $this->renderInboxView($bookingId);
+    }
+
+    private function markConversationSeen(int $bookingId, array $messages): void
+    {
+        if ($messages === []) {
+            return;
+        }
+
+        $latestMessage = $messages[array_key_last($messages)];
+        $this->messages->markThreadSeen($bookingId, (int) ($latestMessage['id'] ?? 0));
+    }
+
+    private function renderInboxView(int $selectedBookingId = 0, array $errors = [], array $fieldErrors = []): string
+    {
+        $userId = (int) Auth::id();
+        $role = (string) Auth::role();
+        $conversations = $this->messages->getInboxForUser($userId, $role, 50);
+        $initialSelectionId = $selectedBookingId;
+
+        if ($selectedBookingId <= 0 && $conversations !== []) {
+            $selectedBookingId = (int) $conversations[0]['booking_id'];
+        }
+
+        $selectedBooking = null;
+        $messages = [];
+
+        if ($selectedBookingId > 0) {
+            $selectedBooking = $this->bookings->findVisibleById($selectedBookingId, $userId, $role);
+
+            if ($selectedBooking !== null) {
+                $messages = $this->messages->forBooking($selectedBookingId);
+                $this->markConversationSeen($selectedBookingId, $messages);
+            }
+        }
+
+        if ($selectedBookingId !== $initialSelectionId || $messages !== []) {
+            $conversations = $this->messages->getInboxForUser($userId, $role, 50);
+        }
+
+        return View::render('messages/inbox', [
+            'pageTitle' => 'Inbox',
+            'booking' => $selectedBooking,
+            'messages' => $messages,
+            'conversations' => $conversations,
+            'selectedBookingId' => $selectedBookingId,
+            'errors' => $errors,
+            'fieldErrors' => $fieldErrors,
         ]);
     }
 }

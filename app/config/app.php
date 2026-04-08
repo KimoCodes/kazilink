@@ -6,12 +6,6 @@ if (!defined('BASE_PATH')) {
     define('BASE_PATH', dirname(__DIR__, 2));
 }
 
-static $config;
-
-if ($config !== null) {
-    return $config;
-}
-
 $env = [];
 $envFile = BASE_PATH . '/.env';
 
@@ -33,14 +27,32 @@ if (is_file($envFile) && is_readable($envFile)) {
     }
 }
 
-$config = [
+return [
     'name' => $env['APP_NAME'] ?? 'Informal Marketplace',
     'env' => $env['APP_ENV'] ?? 'production',
     'debug' => filter_var($env['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOL),
     'url' => rtrim($env['APP_URL'] ?? '', '/'),
     'timezone' => $env['APP_TIMEZONE'] ?? 'Africa/Kigali',
     'session_name' => $env['SESSION_NAME'] ?? 'informal_session',
+    'session' => [
+        'idle_timeout_seconds' => max(60, (int) ($env['SESSION_IDLE_TIMEOUT_SECONDS'] ?? 900)),
+        'presence_window_seconds' => max(60, (int) ($env['SESSION_PRESENCE_WINDOW_SECONDS'] ?? 300)),
+        'heartbeat_interval_seconds' => max(15, (int) ($env['SESSION_HEARTBEAT_INTERVAL_SECONDS'] ?? 60)),
+    ],
     'csrf_token_name' => $env['CSRF_TOKEN_NAME'] ?? '_token',
+    'subscriptions' => [
+        'grace_days' => (int) ($env['SUBSCRIPTION_GRACE_DAYS'] ?? 5),
+    ],
+    'momo' => [
+        'base_url' => $env['MOMO_BASE_URL'] ?? '',
+        'target_environment' => $env['MOMO_TARGET_ENVIRONMENT'] ?? 'sandbox',
+        'primary_key' => $env['MOMO_PRIMARY_KEY'] ?? '',
+        'api_user' => $env['MOMO_API_USER'] ?? '',
+        'api_key' => $env['MOMO_API_KEY'] ?? '',
+        'currency' => $env['MOMO_CURRENCY'] ?? 'RWF',
+        'callback_secret' => $env['MOMO_CALLBACK_SECRET'] ?? '',
+        'callback_allowlist' => $env['MOMO_CALLBACK_ALLOWLIST'] ?? '',
+    ],
     'contact' => [
         'email' => $env['BUSINESS_EMAIL'] ?? 'hello@yourdomain.com',
         'phone' => $env['BUSINESS_PHONE'] ?? '+250 000 000 000',
@@ -48,13 +60,6 @@ $config = [
         'hours' => $env['BUSINESS_HOURS'] ?? 'Mon-Fri, 08:00-18:00 CAT',
         'instagram' => $env['BUSINESS_INSTAGRAM'] ?? 'https://instagram.com/yourbrand',
         'linkedin' => $env['BUSINESS_LINKEDIN'] ?? 'https://linkedin.com/company/yourbrand',
-    ],
-    'stripe' => [
-        'publishable_key' => $env['STRIPE_PUBLISHABLE_KEY'] ?? '',
-        'secret_key' => $env['STRIPE_SECRET_KEY'] ?? '',
-        'webhook_secret' => $env['STRIPE_WEBHOOK_SECRET'] ?? '',
-        'currency' => $env['STRIPE_CURRENCY'] ?? 'rwf',
-        'api_version' => $env['STRIPE_API_VERSION'] ?? '2026-02-25.clover',
     ],
     'db' => [
         'host' => $env['DB_HOST'] ?? '127.0.0.1',
@@ -64,5 +69,3 @@ $config = [
         'pass' => $env['DB_PASS'] ?? '',
     ],
 ];
-
-return $config;

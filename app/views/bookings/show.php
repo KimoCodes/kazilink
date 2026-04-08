@@ -6,11 +6,10 @@ $bookingStatusMap = [
 ];
 $status = (string) $booking['status'];
 $label = $bookingStatusMap[$status] ?? ucfirst($status);
+$bookingStatusLabel = $label;
 $location = (string) $booking['city'] . (!empty($booking['region']) ? ', ' . (string) $booking['region'] : '') . ', ' . (string) $booking['country'];
 $agreedAmount = (float) ($booking['agreed_amount'] ?? $booking['budget'] ?? 0);
-$bookingPayment = is_array($bookingPayment ?? null) ? $bookingPayment : null;
-$paymentStatus = (string) ($bookingPayment['status'] ?? '');
-$isPaid = $paymentStatus === 'paid';
+$agreement = is_array($agreement ?? null) ? $agreement : null;
 ?>
 <div class="container">
     <section class="booking-layout">
@@ -18,8 +17,8 @@ $isPaid = $paymentStatus === 'paid';
             <?php
             $title = (string) $booking['title'];
             $eyebrow = 'Booking Details';
-            $intro = 'Review the confirmed job, keep communication in one thread, and close the booking when done.';
-            $primaryAction = ['label' => 'Open messages', 'href' => url_for('messages/thread', ['id' => (int) $booking['id']])];
+            $intro = 'Review the confirmed job, keep communication in one thread, and keep the hiring agreement close to the work record.';
+            $primaryAction = ['label' => 'Open messages', 'href' => url_for('messages/index', ['id' => (int) $booking['id']])];
             $secondaryLink = ['label' => 'Back to bookings', 'href' => url_for('bookings/index')];
             unset($secondaryAction);
             require BASE_PATH . '/app/views/partials/page_header.php';
@@ -73,53 +72,40 @@ $isPaid = $paymentStatus === 'paid';
                 </div>
             </section>
 
-            <?php if ($booking['status'] === 'completed'): ?>
+            <?php if ($agreement !== null): ?>
                 <section class="booking-section">
                     <div class="section-head">
                         <div>
-                            <h2>Payment</h2>
-                            <p class="section-intro">Completed work should have a clear payment state, not a separate manual follow-up outside the platform.</p>
+                            <h2>Hiring Agreement</h2>
+                            <p class="section-intro">This agreement is the system of record for the hire, offline payment terms, and any later issue reports.</p>
                         </div>
                     </div>
 
-                    <div class="booking-payment-panel <?= $isPaid ? 'booking-payment-panel-paid' : '' ?>">
+                    <div class="booking-payment-panel <?= (string) $agreement['status'] === 'accepted' ? 'booking-payment-panel-paid' : '' ?>">
                         <div>
-                            <span class="sidebar-item-label">Payment status</span>
+                            <span class="sidebar-item-label">Agreement status</span>
                             <div class="booking-payment-status-row">
                                 <?php
-                                $status = $isPaid ? 'paid' : ($paymentStatus !== '' ? $paymentStatus : 'pending');
-                                $label = ucfirst($status);
+                                $status = (string) $agreement['status'];
+                                $label = agreement_status_label($status);
                                 require BASE_PATH . '/app/views/partials/status-badge.php';
                                 ?>
+                                <code class="entity-chip text-mono"><?= e((string) $agreement['agreement_uid']) ?></code>
                                 <strong><?= e(moneyRwf($agreedAmount)) ?></strong>
                             </div>
                             <p class="muted">
-                                <?php if ($isPaid): ?>
-                                    Payment has been recorded for this completed task.
-                                <?php elseif (Auth::role() === 'client'): ?>
-                                    This completed booking is ready for payment through Stripe Checkout.
-                                <?php else: ?>
-                                    Waiting for the client to complete payment for this finished booking.
-                                <?php endif; ?>
+                                Payment is arranged offline. This agreement records the scope, compensation rules, and dual acceptance status for the hire.
                             </p>
-                            <?php if ($bookingPayment !== null): ?>
-                                <p class="text-muted text-mono">Ref: <?= e((string) ($bookingPayment['checkout_session_id'] ?? '')) ?></p>
-                            <?php endif; ?>
                         </div>
 
-                        <?php if (!$isPaid && Auth::role() === 'client'): ?>
-                            <?php if ($paymentsEnabled): ?>
-                                <form method="post" action="<?= e(url_for('payments/booking-checkout')) ?>">
-                                    <?= Csrf::input() ?>
-                                    <input type="hidden" name="booking_id" value="<?= e((string) $booking['id']) ?>">
-                                    <button type="submit" class="button">Pay for completed task</button>
-                                </form>
-                            <?php else: ?>
-                                <div class="setup-note">
-                                    <strong>Stripe setup required</strong>
-                                    <p class="muted">Add Stripe keys to `.env` to enable completed-task payments.</p>
-                                </div>
+                        <div class="button-group">
+                            <a class="button" href="<?= e(url_for('agreements/review', ['id' => (int) $agreement['id']])) ?>">Review Agreement</a>
+                            <?php if ((string) $agreement['status'] === 'accepted'): ?>
+                                <a class="button button-secondary" href="<?= e(url_for('agreements/download', ['id' => (int) $agreement['id']])) ?>">Download PDF</a>
                             <?php endif; ?>
+                        </div>
+                        <?php if (in_array((string) $agreement['status'], ['accepted', 'disputed'], true)): ?>
+                            <p class="muted">Opens a print-ready agreement page. Use your browser's Print to PDF option to save the file.</p>
                         <?php endif; ?>
                     </div>
                 </section>
@@ -222,7 +208,7 @@ $isPaid = $paymentStatus === 'paid';
                     </div>
                     <div>
                         <span class="sidebar-item-label">Last status</span>
-                        <div class="sidebar-item-value"><?= e($label) ?></div>
+                        <div class="sidebar-item-value"><?= e($bookingStatusLabel) ?></div>
                     </div>
                 </div>
             </div>
@@ -233,7 +219,7 @@ $isPaid = $paymentStatus === 'paid';
                     <?php if ($booking['status'] === 'active'): ?>
                         Use messages to confirm timing, access, and any last details before marking the booking complete.
                     <?php elseif ($booking['status'] === 'completed'): ?>
-                        Use this page for the final record: agreed scope, payment state, and review history all stay together here.
+                        Use this page for the final record: agreed scope, hiring agreement, and review history all stay together here.
                     <?php else: ?>
                         This booking has been closed, but the record remains available for reference.
                     <?php endif; ?>

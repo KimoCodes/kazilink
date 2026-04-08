@@ -15,6 +15,7 @@ $completionRate = (string) ($bookingStats['completion_rate'] ?? '0%');
 $lastCompletedAt = $bookingStats['last_completed_at'] ?? null;
 $sortLabel = $sort === 'highest' ? 'highest rating' : ($sort === 'lowest' ? 'lowest rating' : 'newest');
 $currentRole = (string) Auth::role();
+$subscriptionPlan = is_array($subscriptionPlan ?? null) ? $subscriptionPlan : null;
 ?>
 <div class="container">
     <section class="task-detail-layout">
@@ -56,6 +57,9 @@ $currentRole = (string) Auth::role();
                     <div class="profile-identity-copy">
                         <div class="button-group">
                             <span class="pill pill-success">Verified tasker</span>
+                            <?php if (!empty($subscriptionPlan['badge_name'])): ?>
+                                <span class="subscription-tier-badge"><?= e((string) $subscriptionPlan['badge_name']) ?></span>
+                            <?php endif; ?>
                             <span class="pill pill-info"><?= e((string) $reviewCount) ?> review<?= $reviewCount === 1 ? '' : 's' ?></span>
                             <span class="pill pill-primary"><?= e($completionRate) ?> completion rate</span>
                         </div>
@@ -78,6 +82,17 @@ $currentRole = (string) Auth::role();
                                 <span class="sidebar-item-label">Skills</span>
                                 <div class="sidebar-item-value"><?= !empty($profile['skills_summary']) ? e((string) $profile['skills_summary']) : 'General task support' ?></div>
                             </div>
+                            <?php if ($subscriptionPlan !== null): ?>
+                                <div class="profile-meta-item">
+                                    <span class="sidebar-item-label">Plan tier</span>
+                                    <div class="sidebar-item-value">
+                                        <?= e((string) $subscriptionPlan['name']) ?>
+                                        <?php if ((float) ($subscriptionPlan['commission_discount'] ?? 0) > 0): ?>
+                                            <span class="muted">• <?= e(number_format((float) $subscriptionPlan['commission_discount'], 0)) ?>% commission discount</span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

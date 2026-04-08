@@ -6,7 +6,7 @@
 - `ADMIN` users are created manually through seed data or direct database updates, not through public signup.
 - A task can be booked with only one tasker, and only one accepted application exists per task.
 - Messaging is allowed only after a booking exists between the client and the selected tasker.
-- Payments are represented by a stubbed checkout and payout status in the database until Stripe is integrated.
+- Payments are handled offline between clients and taskers; the platform records the hire through a hiring agreement and dispute log instead of processing funds.
 - Location is stored as plain text for MVP (`city`, `region`, `country`) without maps, geocoding, or distance ranking.
 - Search is simple keyword/category/location/status filtering with PostgreSQL text matching; no recommendations or ranking engine.
 - Task budgets are fixed-price only for MVP.
@@ -41,7 +41,7 @@ Build a two-sided marketplace where clients post service tasks and taskers disco
 
 ### Admin
 
-- View all users, tasks, applications, bookings, reviews, and payments
+- View all users, tasks, applications, bookings, reviews, agreements, and disputes
 - Disable or re-enable users
 - Disable or re-enable tasks
 - View basic analytics counts and totals
@@ -148,12 +148,13 @@ Build a two-sided marketplace where clients post service tasks and taskers disco
 - `REJECTED`
 - `ACCEPTED`
 
-### Payment Status
+### Agreement Status
 
-- `NOT_STARTED`
-- `HOLD_PENDING`
-- `HELD`
-- `RELEASED`
+- `DRAFT`
+- `PENDING_ACCEPTANCE`
+- `ACCEPTED`
+- `CANCELLED`
+- `DISPUTED`
 - `REFUNDED`
 - `FAILED`
 
@@ -281,15 +282,17 @@ This schema is written as a product-level contract and is intended to map direct
 - `createdAt`: timestamp
 - Unique constraint: (`bookingId`, `reviewerId`)
 
-### Payment
+### Hiring Agreement
 
 - `id`: UUID, primary key
 - `bookingId`: foreign key to `Booking`, unique
-- `amount`: decimal(10,2), required
-- `currency`: string(3), default `USD`
-- `status`: enum `NOT_STARTED | HOLD_PENDING | HELD | RELEASED | REFUNDED | FAILED`
-- `provider`: string, default `stripe_stub`
-- `providerRef`: string, nullable
+- `agreementUid`: unique public verification identifier
+- `jobTitle`: string, required
+- `jobDescription`: text, required
+- `offlinePaymentTermsText`: text, required
+- `compensationTermsText`: text, required
+- `cancellationTermsText`: text, required
+- `status`: enum `DRAFT | PENDING_ACCEPTANCE | ACCEPTED | CANCELLED | DISPUTED`
 - `createdAt`: timestamp
 - `updatedAt`: timestamp
 
@@ -313,7 +316,7 @@ This schema is written as a product-level contract and is intended to map direct
 - One booking has one conversation.
 - One conversation has many messages.
 - One booking has up to two reviews, one from each party.
-- One booking has one payment record for MVP.
+- One booking has one hiring agreement record.
 
 ## Indexes and Constraints
 
@@ -323,7 +326,7 @@ This schema is written as a product-level contract and is intended to map direct
 - Unique: `Booking.taskId`
 - Unique: `Booking.applicationId`
 - Unique: `Conversation.bookingId`
-- Unique: `Payment.bookingId`
+- Unique: `HiringAgreement.bookingId`
 - Unique: `Review(bookingId, reviewerId)`
 - Index: `Task.status`
 - Index: `Task.categoryId`
@@ -435,14 +438,14 @@ The route list assumes PHP-based API handlers under `/api`. Authentication sessi
 - `POST /api/bookings/:bookingId/reviews`
   - Create review by participant after completion
 
-### Payments
+### Agreements
 
-- `GET /api/bookings/:bookingId/payment`
-  - Get payment stub record
-- `POST /api/bookings/:bookingId/payment/hold`
-  - Create or update mock payment hold
-- `POST /api/bookings/:bookingId/payment/release`
-  - Release mock payment on completion
+- `GET /agreements/review?id=:agreementId`
+  - Review agreement and audit history
+- `POST /agreements/accept`
+  - Accept agreement as client or tasker
+- `GET /agreements/verify?agreement_uid=:agreementUid`
+  - Verify a public agreement record
 
 ### Admin
 
@@ -461,7 +464,7 @@ The route list assumes PHP-based API handlers under `/api`. Authentication sessi
 
 ## Non-Goals for MVP
 
-- No escrow logic beyond stub payment states
+- No on-platform payment processing or escrow
 - No live websocket chat
 - No background jobs
 - No provider verification or identity checks

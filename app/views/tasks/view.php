@@ -3,6 +3,8 @@ $fieldErrors = is_array($fieldErrors ?? null) ? $fieldErrors : [];
 $connectSummaryErrors = !empty($errors);
 $bidAmountValue = !empty($errors) ? old_value('bid_amount') : '';
 $bidMessageValue = !empty($errors) ? old_value('bid_message') : '';
+$viewerPlan = is_array($viewerPlan ?? null) ? $viewerPlan : null;
+$applicationAccess = is_array($applicationAccess ?? null) ? $applicationAccess : null;
 ?>
 <div class="container">
     <section class="task-detail-layout">
@@ -63,6 +65,24 @@ $bidMessageValue = !empty($errors) ? old_value('bid_message') : '';
                     <p style="color: var(--color-text-muted); font-size: var(--font-sm); margin-bottom: var(--space-4);">
                         You can submit one bid per task. Keep the amount and message clear to stand out.
                     </p>
+
+                    <?php if ($viewerPlan !== null && $applicationAccess !== null): ?>
+                        <div class="subscription-plan-banner subscription-plan-banner-tight">
+                            <div>
+                                <span class="sidebar-item-label">Application access</span>
+                                <div class="task-summary-metric-row">
+                                    <strong><?= e((string) $viewerPlan['name']) ?></strong>
+                                    <span><?= e((string) $applicationAccess['remaining']) ?> left today</span>
+                                </div>
+                            </div>
+                            <div class="button-group">
+                                <?php if (!empty($viewerPlan['badge_name'])): ?>
+                                    <span class="subscription-tier-badge"><?= e((string) $viewerPlan['badge_name']) ?></span>
+                                <?php endif; ?>
+                                <a class="button button-secondary button-small" href="<?= e(url_for('subscriptions/index')) ?>">Upgrade</a>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <?php if ($existingBid !== null): ?>
                         <!-- Existing Bid Display -->

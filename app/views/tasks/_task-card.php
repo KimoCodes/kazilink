@@ -1,69 +1,82 @@
 <?php
-// Render a single task card for use in lists (index, browse, etc)
-// Variables expected: $task (associative array with title, category_name, city, country, status, budget, scheduled_for, id)
+$agreementForTask = $agreementsByBooking[(int) ($task['booking_id'] ?? 0)] ?? null;
+$agreementStatus = is_array($agreementForTask) ? (string) ($agreementForTask['status'] ?? '') : '';
+$agreedAmount = (float) ($task['agreed_amount'] ?? $task['budget'] ?? 0);
 ?>
-<article class="task-card" style="position: relative;">
-    <!-- Status badge: positioned top-right -->
-    <div style="position: absolute; top: var(--space-4); right: var(--space-4);">
-        <?php $status = (string) $task['status']; $label = ucfirst((string) $task['status']); require BASE_PATH . '/app/views/partials/status-badge.php'; ?>
-    </div>
-
-    <!-- Task info -->
-    <div style="padding-right: var(--space-10);">
-        <h3 style="margin: 0 0 var(--space-2) 0; font-size: var(--font-lg); line-height: 1.4;">
-            <?= e((string) $task['title']) ?>
-        </h3>
-        <?php if (!empty($task['tasker_id'])): ?>
-            <div style="margin-bottom: var(--space-3); color: var(--color-text-muted); font-size: var(--font-sm);">
-                <?= $task['status'] === 'completed' ? 'Completed by' : 'Booked with' ?>
-                <a href="<?= e(url_for('profile/view', ['id' => (int) $task['tasker_id']])) ?>">
-                    <?= e((string) $task['tasker_name']) ?>
-                </a>
+<article class="task-card task-card-client">
+    <div class="task-card-header">
+        <div class="task-card-title-wrap">
+            <h3 class="task-card-title task-card-title-compact"><?= e((string) $task['title']) ?></h3>
+            <?php if (!empty($task['tasker_id'])): ?>
+                <div class="task-card-assignee">
+                    <?= $task['status'] === 'completed' ? 'Completed by' : 'Booked with' ?>
+                    <a href="<?= e(url_for('profile/view', ['id' => (int) $task['tasker_id']])) ?>">
+                        <?= e((string) $task['tasker_name']) ?>
+                    </a>
+                </div>
+            <?php endif; ?>
+            <div class="task-card-meta">
+                <span class="task-card-category"><?= e((string) $task['category_name']) ?></span>
+                <span>•</span>
+                <span>📍 <?= e((string) $task['city']) ?>, <?= e((string) $task['country']) ?></span>
             </div>
-        <?php endif; ?>
-        <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); color: var(--color-text-muted); font-size: var(--font-sm);">
-            <span style="color: var(--color-primary); font-weight: 500;"><?= e((string) $task['category_name']) ?></span>
-            <span>•</span>
-            <span>📍 <?= e((string) $task['city']) ?>, <?= e((string) $task['country']) ?></span>
+        </div>
+        <div class="button-group task-card-statuses">
+            <?php $status = (string) $task['status']; $label = ucfirst((string) $task['status']); require BASE_PATH . '/app/views/partials/status-badge.php'; ?>
+            <?php if ($agreementStatus !== ''): ?>
+                <span class="pill <?= $agreementStatus === 'accepted' ? 'pill-success' : ($agreementStatus === 'disputed' ? 'pill-warning' : 'pill-info') ?>"><?= e(agreement_status_label($agreementStatus)) ?></span>
+            <?php endif; ?>
         </div>
     </div>
 
-    <!-- Price & Schedule -->
-    <div style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-6); margin-bottom: var(--space-5); padding-bottom: var(--space-5); border-bottom: 1px solid var(--color-border);">
+    <div class="task-card-metrics">
         <div>
-            <span style="display: block; font-size: var(--font-xs); text-transform: uppercase; color: var(--color-text-muted); margin-bottom: var(--space-1);">Budget</span>
-            <strong style="font-size: 1.25rem; color: var(--color-primary-strong);">
-                <?= e(moneyRwf($task['budget'])) ?>
-            </strong>
+            <span class="task-card-metric-label"><?= $task['status'] === 'completed' ? 'Agreed amount' : 'Budget' ?></span>
+            <strong class="task-card-metric-value"><?= e(moneyRwf($agreedAmount)) ?></strong>
         </div>
         <div>
-            <span style="display: block; font-size: var(--font-xs); text-transform: uppercase; color: var(--color-text-muted); margin-bottom: var(--space-1);">Schedule</span>
-            <div style="color: var(--color-text);">
+            <span class="task-card-metric-label">Schedule</span>
+            <div class="task-card-metric-copy">
                 <?php if (!empty($task['scheduled_for'])): ?>
                     <?= e(format_datetime((string) $task['scheduled_for'])) ?>
                 <?php else: ?>
-                    <span style="color: var(--color-text-muted);">No date scheduled</span>
+                    <span class="text-muted">No date scheduled</span>
                 <?php endif; ?>
             </div>
         </div>
     </div>
 
-    <!-- Actions -->
-    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
-        <a class="button button-secondary button-small" href="<?= e(url_for('tasks/show', ['id' => (int) $task['id']])) ?>">
-            View task
-        </a>
-        <?php if ($task['status'] === 'open'): ?>
-            <a class="button button-secondary button-small" href="<?= e(url_for('tasks/edit', ['id' => (int) $task['id']])) ?>">
-                Edit
+    <div class="task-card-footer">
+        <div class="task-card-footer-copy">
+            <?php if ($agreementStatus !== ''): ?>
+                <span class="muted">
+                    <?= $agreementStatus === 'accepted' ? 'This hire has a fully accepted agreement on record.' : 'Review the agreement record before work continues or issues are reported.' ?>
+                </span>
+            <?php else: ?>
+                <span class="muted">Manage this task from its detail page.</span>
+            <?php endif; ?>
+        </div>
+        <div class="button-group">
+            <?php if (is_array($agreementForTask)): ?>
+                <a class="button button-small" href="<?= e(url_for('agreements/review', ['id' => (int) $agreementForTask['id']])) ?>">
+                    Review Agreement
+                </a>
+            <?php endif; ?>
+            <a class="button button-secondary button-small" href="<?= e(url_for('tasks/show', ['id' => (int) $task['id']])) ?>">
+                View task
             </a>
-            <form method="post" action="<?= e(url_for('tasks/cancel')) ?>" style="display: inline;">
-                <?= Csrf::input() ?>
-                <input type="hidden" name="id" value="<?= e((string) $task['id']) ?>">
-                <button type="submit" class="button button-danger button-small" data-confirm="Cancel this task? All bids will be withdrawn.">
-                    Cancel
-                </button>
-            </form>
-        <?php endif; ?>
+            <?php if ($task['status'] === 'open'): ?>
+                <a class="button button-secondary button-small" href="<?= e(url_for('tasks/edit', ['id' => (int) $task['id']])) ?>">
+                    Edit
+                </a>
+                <form method="post" action="<?= e(url_for('tasks/cancel')) ?>">
+                    <?= Csrf::input() ?>
+                    <input type="hidden" name="id" value="<?= e((string) $task['id']) ?>">
+                    <button type="submit" class="button button-danger button-small" data-confirm="Cancel this task? All bids will be withdrawn.">
+                        Cancel
+                    </button>
+                </form>
+            <?php endif; ?>
+        </div>
     </div>
 </article>

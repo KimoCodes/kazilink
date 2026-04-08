@@ -18,6 +18,7 @@ final class BidController
     public function create(): string
     {
         Auth::requireRole('tasker');
+        SubscriptionAccess::requirePaidAccess('Submitting bids requires an active subscription after your free trial.');
         verifyPostRequest('tasks/browse');
         $taskId = (int) ($_POST['task_id'] ?? 0);
 
@@ -26,7 +27,7 @@ final class BidController
             redirect('tasks/browse');
         }
 
-        $task = $this->tasks->findOpenById($taskId);
+        $task = $this->tasks->findOpenById($taskId, getUserPlan((int) Auth::id()));
 
         if ($task === null) {
             Session::flash('error', 'That task is not available for bidding.');
@@ -43,6 +44,12 @@ final class BidController
             redirect('tasks/view', ['id' => $taskId]);
         }
 
+        $applicationAccess = canApplyToJob((int) Auth::id());
+        if (!$applicationAccess['allowed']) {
+            Session::flash('error', (string) $applicationAccess['message']);
+            redirect('subscriptions/index');
+        }
+
         $input = Validator::trim($_POST);
         Session::setOldInput([
             'bid_amount' => (string) ($input['amount'] ?? ''),
@@ -54,12 +61,17 @@ final class BidController
             return $this->renderTaskViewWithBidFormErrors($task, $fieldErrors);
         }
 
-        $this->bids->create([
-            'task_id' => $taskId,
-            'tasker_id' => (int) Auth::id(),
-            'amount' => number_format((float) $input['amount'], 2, '.', ''),
-            'message' => (string) ($input['message'] ?? ''),
-        ]);
+        try {
+            $this->bids->createForTaskerOnOpenTask([
+                'task_id' => $taskId,
+                'tasker_id' => (int) Auth::id(),
+                'amount' => number_format((float) $input['amount'], 2, '.', ''),
+                'message' => (string) ($input['message'] ?? ''),
+            ], (int) ($applicationAccess['limit'] ?? 0));
+        } catch (RuntimeException $exception) {
+            Session::flash('error', $exception->getMessage());
+            redirect('tasks/view', ['id' => $taskId]);
+        }
 
         Session::clearOldInput();
         Session::flash('success', 'Your bid has been submitted.');
@@ -105,6 +117,8 @@ final class BidController
             'pageTitle' => 'Browse Task',
             'task' => $task,
             'existingBid' => null,
+            'viewerPlan' => getUserPlan((int) Auth::id()),
+            'applicationAccess' => canApplyToJob((int) Auth::id()),
             'errors' => Validator::flattenFieldErrors($fieldErrors),
             'fieldErrors' => $fieldErrors,
         ]);

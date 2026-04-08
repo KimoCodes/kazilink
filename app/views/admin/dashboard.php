@@ -1,11 +1,12 @@
 <div class="container">
+    <?php $ads = is_array($ads ?? null) ? $ads : []; ?>
     <section class="panel">
         <?php
         $title = 'Admin Dashboard';
         $eyebrow = 'Admin';
         $intro = 'Monitor marketplace activity, manage users, and moderate content when needed.';
-        $primaryAction = ['label' => 'Manage users', 'href' => url_for('admin/users')];
-        $secondaryAction = ['label' => 'View payments', 'href' => url_for('admin/payments')];
+        $primaryAction = ['label' => 'Review agreements', 'href' => url_for('admin/agreements')];
+        $secondaryAction = ['label' => 'Review disputes', 'href' => url_for('admin/disputes')];
         unset($secondaryLink);
         require BASE_PATH . '/app/views/partials/page_header.php';
         ?>
@@ -36,12 +37,28 @@
                 <strong><?= e((string) $stats['completed_tasks']) ?></strong>
             </article>
             <article class="admin-kpi-card admin-kpi-card-primary">
-                <span class="admin-kpi-label">Paid Payments</span>
-                <strong><?= e((string) $stats['paid_payments']) ?></strong>
+                <span class="admin-kpi-label">Pending Agreements</span>
+                <strong><?= e((string) $stats['pending_agreements']) ?></strong>
             </article>
             <article class="admin-kpi-card admin-kpi-card-info">
-                <span class="admin-kpi-label">Payment Volume</span>
-                <strong><?= e(moneyRwf($stats['payments_volume'])) ?></strong>
+                <span class="admin-kpi-label">Accepted Agreements</span>
+                <strong><?= e((string) $stats['accepted_agreements']) ?></strong>
+            </article>
+            <article class="admin-kpi-card admin-kpi-card-warning">
+                <span class="admin-kpi-label">Open Disputes</span>
+                <strong><?= e((string) $stats['open_disputes']) ?></strong>
+            </article>
+            <article class="admin-kpi-card admin-kpi-card-info">
+                <span class="admin-kpi-label">Active Plans</span>
+                <strong><?= e((string) $stats['active_plans']) ?></strong>
+            </article>
+            <article class="admin-kpi-card admin-kpi-card-primary">
+                <span class="admin-kpi-label">Live Subscriptions</span>
+                <strong><?= e((string) $stats['subscriptions_live']) ?></strong>
+            </article>
+            <article class="admin-kpi-card admin-kpi-card-warning">
+                <span class="admin-kpi-label">Webhook Events</span>
+                <strong><?= e((string) $stats['webhook_events']) ?></strong>
             </article>
         </div>
 
@@ -62,67 +79,63 @@
                 <span class="pill pill-primary"><?= count($auditLogs) ?> recent audit entries</span>
             </article>
             <article class="feature-card">
-                <h3>Review payments</h3>
-                <p class="muted">Track pending, paid, failed, and expired Stripe Checkout sessions in one admin-friendly view.</p>
-                <a class="button-link" href="<?= e(url_for('admin/payments')) ?>">Open payment records</a>
+                <h3>Monitor agreement health</h3>
+                <p class="muted">Use agreement and dispute metrics to spot where hires are not being fully accepted or where issues are trending.</p>
+                <a class="button-link" href="<?= e(url_for('admin/agreements')) ?>">Open agreement queue</a>
+            </article>
+            <article class="feature-card">
+                <h3>Publish ads</h3>
+                <p class="muted">Create and manage promotional ads that appear on the home page and marketplace discovery screen.</p>
+                <a class="button-link" href="<?= e(url_for('admin/ads')) ?>">Open ad manager</a>
+            </article>
+            <article class="feature-card">
+                <h3>Manage plans</h3>
+                <p class="muted">Edit monthly prices, control plan visibility levels, and disable tiers without changing code.</p>
+                <a class="button-link" href="<?= e(url_for('admin/plans')) ?>">Open plan manager</a>
+            </article>
+            <article class="feature-card">
+                <h3>Issue promo codes</h3>
+                <p class="muted">Create global or user-targeted discounts with expiry dates and redemption limits.</p>
+                <a class="button-link" href="<?= e(url_for('admin/promos')) ?>">Open promo manager</a>
+            </article>
+            <article class="feature-card">
+                <h3>Subscription settings</h3>
+                <p class="muted">Tune grace periods from the database so billing policy changes do not require a deploy.</p>
+                <a class="button-link" href="<?= e(url_for('admin/settings')) ?>">Open settings</a>
+            </article>
+            <article class="feature-card">
+                <h3>Theme and backgrounds</h3>
+                <p class="muted">Upload page backgrounds, switch light or dark mode, and update brand colors from a single admin screen.</p>
+                <a class="button-link" href="<?= e(url_for('admin/theme')) ?>">Open theme manager</a>
+            </article>
+            <article class="feature-card">
+                <h3>Review subscription payments</h3>
+                <p class="muted">Inspect MTN MoMo transactions, confirm edge cases, and keep every manual intervention auditable.</p>
+                <a class="button-link" href="<?= e(url_for('admin/subscriptions')) ?>">Open subscriptions</a>
+            </article>
+            <article class="feature-card">
+                <h3>Read contact messages</h3>
+                <p class="muted">Open locally captured support requests and reply directly from the admin workspace.</p>
+                <a class="button-link" href="<?= e(url_for('admin/messages')) ?>">Open contact inbox</a>
+            </article>
+            <article class="feature-card">
+                <h3>Review newsletter signups</h3>
+                <p class="muted">See who subscribed, which audience they chose, and where the signup came from without opening local files.</p>
+                <a class="button-link" href="<?= e(url_for('admin/newsletter')) ?>">Open subscriber list</a>
+            </article>
+            <article class="feature-card">
+                <h3>Review open issues</h3>
+                <p class="muted">Investigate non-payment, no-show, and scope-change reports with the linked agreement record close at hand.</p>
+                <a class="button-link" href="<?= e(url_for('admin/disputes')) ?>">Open dispute queue</a>
             </article>
         </div>
     </section>
 
-    <section class="panel">
-        <div class="section-head">
-            <div>
-                <h2>Recent Payments</h2>
-                <p class="section-intro">Latest locally recorded Checkout sessions and webhook outcomes.</p>
-            </div>
-            <div class="page-actions">
-                <a class="button button-secondary button-small" href="<?= e(url_for('admin/payments')) ?>">View all payments</a>
-            </div>
-        </div>
-
-        <?php if ($recentPayments === []): ?>
-            <?php
-            $emptyIcon = '💳';
-            $emptyTitle = 'No payments recorded yet';
-            $emptyMessage = 'Checkout sessions and webhook-confirmed payments will appear here once Stripe is configured and used.';
-            require BASE_PATH . '/app/views/partials/empty_state.php';
-            ?>
-        <?php else: ?>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>When</th>
-                            <th>Plan</th>
-                            <th>Customer</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recentPayments as $payment): ?>
-                            <tr>
-                                <td><?= e(dateFmt((string) ($payment['paid_at'] ?? $payment['created_at']))) ?></td>
-                                <td>
-                                    <strong><?= e((string) $payment['plan_name']) ?></strong><br>
-                                    <span class="text-muted text-mono"><?= e((string) $payment['checkout_session_id']) ?></span>
-                                </td>
-                                <td><?= e((string) ($payment['customer_email'] ?: $payment['full_name'] ?: 'Guest checkout')) ?></td>
-                                <td><?= e(moneyRwf((int) $payment['amount_minor'])) ?></td>
-                                <td>
-                                    <?php
-                                    $status = (string) $payment['status'];
-                                    $label = ucfirst((string) $payment['status']);
-                                    require BASE_PATH . '/app/views/partials/status-badge.php';
-                                    ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php endif; ?>
-    </section>
+    <?php
+    if ($ads !== []) {
+        require BASE_PATH . '/app/views/partials/ad-banner.php';
+    }
+    ?>
 
     <section class="panel">
         <div class="section-head">
@@ -148,6 +161,7 @@
                             <th>Admin</th>
                             <th>Target</th>
                             <th>Action</th>
+                            <th>Notes</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -163,6 +177,7 @@
                                     require BASE_PATH . '/app/views/partials/status-badge.php';
                                     ?>
                                 </td>
+                                <td><?= !empty($log['notes']) ? e((string) $log['notes']) : '<span class="text-muted">—</span>' ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

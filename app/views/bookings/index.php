@@ -2,8 +2,8 @@
 $activeBookings = array_values(array_filter($bookings, static fn (array $booking): bool => (string) $booking['status'] === 'active'));
 $completedBookings = array_values(array_filter($bookings, static fn (array $booking): bool => (string) $booking['status'] === 'completed'));
 $cancelledBookings = array_values(array_filter($bookings, static fn (array $booking): bool => (string) $booking['status'] === 'cancelled'));
-$paymentsByBooking = is_array($paymentsByBooking ?? null) ? $paymentsByBooking : [];
-$paymentsEnabled = (bool) ($paymentsEnabled ?? false);
+$agreementsByBooking = is_array($agreementsByBooking ?? null) ? $agreementsByBooking : [];
+$pagination = is_array($pagination ?? null) ? $pagination : ['total' => count($bookings), 'page' => 1, 'total_pages' => 1];
 $totalBookingValue = array_reduce(
     $bookings,
     static fn (float $carry, array $booking): float => $carry + (float) ($booking['agreed_amount'] ?? $booking['budget'] ?? 0),
@@ -18,7 +18,7 @@ $sections = [
     ],
     [
         'title' => 'Completed',
-        'description' => 'Finished work with review history and booking context preserved.',
+        'description' => 'Finished work with review history, agreements, and issue records preserved.',
         'pillClass' => 'pill-success',
         'items' => $completedBookings,
     ],
@@ -35,7 +35,7 @@ $sections = [
         <?php
         $title = 'Your bookings';
         $eyebrow = 'Bookings';
-        $intro = 'Track confirmed engagements, who they are with, and what stage they are in.';
+        $intro = 'Track confirmed engagements, who they are with, and what stage they are in. Showing ' . count($bookings) . ' of ' . (int) ($pagination['total'] ?? count($bookings)) . '.';
         unset($primaryAction, $secondaryAction, $secondaryLink);
         require BASE_PATH . '/app/views/partials/page_header.php';
         ?>
@@ -97,6 +97,11 @@ $sections = [
                     </section>
                 <?php endforeach; ?>
             </div>
+            <?php
+            $paginationRoute = 'bookings/index';
+            $paginationParams = [];
+            require BASE_PATH . '/app/views/partials/pagination.php';
+            ?>
         <?php endif; ?>
     </section>
 </div>

@@ -1,4 +1,5 @@
 <div class="container">
+    <?php $ads = is_array($ads ?? null) ? $ads : []; ?>
     <section class="panel">
         <?php
         $title = 'Tasker Dashboard';
@@ -165,4 +166,10 @@
             </div>
         </div>
     </section>
+
+    <?php
+    if ($ads !== []) {
+        require BASE_PATH . '/app/views/partials/ad-banner.php';
+    }
+    ?>
 </div>

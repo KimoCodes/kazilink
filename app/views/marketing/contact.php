@@ -8,7 +8,7 @@ $currentUser = Auth::user();
         <div class="hero">
             <span class="eyebrow">Contact</span>
             <h1>Reach out without guessing where support lives.</h1>
-            <p class="page-intro">Use this form for pricing questions, partnership conversations, support follow-up, or early-launch coordination. The form includes validation and a simple spam honeypot so it can work today without a third-party service.</p>
+            <p class="page-intro">Use this form for hiring-flow questions, partnership conversations, support follow-up, or early-launch coordination. The form includes validation and a simple spam honeypot so it can work today without a third-party service.</p>
         </div>
     </section>
 
@@ -94,10 +94,10 @@ $currentUser = Auth::user();
                 $label = 'Message';
                 $as = 'textarea';
                 $value = old_value('message');
-                $placeholder = 'Tell us what you need, what plan you are considering, or what issue you are trying to solve.';
+                $placeholder = 'Tell us what you need, what hiring issue you are trying to solve, or what kind of support you need.';
                 $autocomplete = 'off';
                 $required = true;
-                $hint = 'Please avoid sharing sensitive payment details in the message itself.';
+                $hint = 'Please avoid sharing sensitive financial details in the message itself.';
                 $error = $fieldErrors['message'][0] ?? null;
                 $attrs = ['maxlength' => '3000'];
                 require BASE_PATH . '/app/views/partials/form_field.php';

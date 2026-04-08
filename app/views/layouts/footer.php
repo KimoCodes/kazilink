@@ -5,8 +5,8 @@
             <section class="footer-newsletter">
                 <div>
                     <span class="eyebrow">Stay in the loop</span>
-                    <h2>Get launch notes, product updates, and practical service tips.</h2>
-                    <p class="section-intro">This is a lightweight newsletter stub for now. Emails are validated and stored locally so you can connect a real provider later without changing the page flow.</p>
+                    <h2>Useful updates, sent sparingly.</h2>
+                    <p class="section-intro">Join the Kazilink list for launch announcements, marketplace improvements, hiring tips, and practical guidance for clients, taskers, and partners.</p>
                 </div>
                 <form method="post" action="<?= e(url_for('marketing/newsletter')) ?>" class="footer-newsletter-form" novalidate>
                     <?= Csrf::input() ?>
@@ -16,14 +16,15 @@
                         <input id="newsletter-company-website" name="company_website" type="text" tabindex="-1" autocomplete="off">
                     </div>
                     <div class="footer-newsletter-fields">
-                        <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email address for newsletter">
+                        <input type="email" name="email" placeholder="Enter your email for updates" autocomplete="email" aria-label="Email address for newsletter">
                         <select name="audience" aria-label="Audience type">
-                            <option value="client">Client updates</option>
-                            <option value="tasker">Tasker updates</option>
-                            <option value="partner">Partner updates</option>
+                            <option value="client">Hiring clients</option>
+                            <option value="tasker">Taskers</option>
+                            <option value="partner">Partners</option>
                         </select>
-                        <button type="submit" class="button">Join updates</button>
+                        <button type="submit" class="button">Subscribe</button>
                     </div>
+                    <p class="muted">No spam. You can review or move subscribers from the local capture file until a full email provider is connected.</p>
                 </form>
             </section>
 
@@ -33,10 +34,10 @@
                         <span class="brand-mark">K</span>
                         <span class="brand-copy">
                             <strong><?= e(app_config('name')) ?></strong>
-                            <span>Professional local coordination that feels clear and trustworthy.</span>
+                            <span>Calm tools for trusted local hiring.</span>
                         </span>
                     </a>
-                    <p class="muted">Built with plain PHP, careful information architecture, and a practical service workflow for Kigali-based bookings and beyond.</p>
+                    <p class="muted">Built with plain PHP and a practical marketplace workflow centered on matching, hiring agreements, and evidence capture.</p>
                 </div>
 
                 <div class="footer-column">
@@ -44,7 +45,7 @@
                     <ul class="footer-link-list">
                         <li><a href="<?= e(url_for('home/index')) ?>">Home</a></li>
                         <li><a href="<?= e(url_for('marketing/about')) ?>">About</a></li>
-                        <li><a href="<?= e(url_for('marketing/pricing')) ?>">Pricing</a></li>
+                        <li><a href="<?= e(url_for('marketing/pricing')) ?>">How it works</a></li>
                         <li><a href="<?= e(url_for('marketing/contact')) ?>">Contact</a></li>
                     </ul>
                 </div>
@@ -55,7 +56,7 @@
                         <li><a href="<?= e(url_for('auth/register')) ?>">Create account</a></li>
                         <li><a href="<?= e(url_for('auth/login')) ?>">Log in</a></li>
                         <li><a href="<?= e(url_for('marketing/contact')) ?>">Request help</a></li>
-                        <li><a href="<?= e(url_for('marketing/pricing')) ?>">Pay securely</a></li>
+                        <li><a href="<?= e(url_for('marketing/pricing')) ?>">Hiring protection</a></li>
                     </ul>
                 </div>
 

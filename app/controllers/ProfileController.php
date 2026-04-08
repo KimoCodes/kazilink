@@ -9,6 +9,7 @@ final class ProfileController
     private Booking $bookings;
     private Bid $bids;
     private Task $tasks;
+    private Ad $ads;
 
     private const AVATAR_MAX_BYTES = 2097152;
     private const ALLOWED_AVATAR_MIME = [
@@ -24,6 +25,7 @@ final class ProfileController
         $this->bookings = new Booking();
         $this->bids = new Bid();
         $this->tasks = new Task();
+        $this->ads = new Ad();
     }
 
     public function show(): string
@@ -42,6 +44,7 @@ final class ProfileController
         return View::render('profiles/show', [
             'pageTitle' => 'My Profile',
             'profile' => $profile,
+            'subscriptionPlan' => getUserPlan($userId),
             'profileStats' => $this->buildProfileStats($userId, $role, $profile),
         ]);
     }
@@ -142,6 +145,7 @@ final class ProfileController
         return View::render('profiles/view', [
             'pageTitle' => 'Tasker Profile',
             'profile' => $profile,
+            'subscriptionPlan' => getUserPlan($taskerId),
             'sort' => $sort,
             'reviews' => $this->reviews->listByTaskerId($taskerId, $sort),
             'reviewStats' => $this->reviews->getAggregatesByTaskerId($taskerId),
@@ -181,9 +185,12 @@ final class ProfileController
         return View::render('profiles/tasker-dashboard', [
             'pageTitle' => 'Tasker Dashboard',
             'profile' => $profile,
+            'subscriptionPlan' => getUserPlan($userId),
+            'applicationAccess' => canApplyToJob($userId),
             'activeBids' => $activeBids,
             'recentBookings' => $recentBookings,
             'stats' => $stats,
+            'ads' => $this->ads->activeByPlacement('home', 2),
         ]);
     }
 

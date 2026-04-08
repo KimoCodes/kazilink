@@ -4,6 +4,7 @@
         $visibleTasks = array_values(array_filter($tasks, static fn (array $task): bool => (int) $task['is_active'] === 1));
         $hiddenTasks = array_values(array_filter($tasks, static fn (array $task): bool => (int) $task['is_active'] !== 1));
         $openTasks = array_values(array_filter($tasks, static fn (array $task): bool => (string) $task['status'] === 'open'));
+        $pagination = is_array($pagination ?? null) ? $pagination : ['total' => count($tasks), 'page' => 1, 'total_pages' => 1];
         ?>
         <?php
         $title = 'Manage Tasks';
@@ -19,7 +20,7 @@
                 <h2>All Tasks</h2>
                 <p class="muted">Spot risky listings quickly while keeping budgets and locations readable for moderation.</p>
             </div>
-            <span class="pill pill-info"><?= count($tasks) ?> task<?= count($tasks) !== 1 ? 's' : '' ?></span>
+            <span class="pill pill-info"><?= e((string) ($pagination['total'] ?? count($tasks))) ?> task<?= (int) ($pagination['total'] ?? count($tasks)) !== 1 ? 's' : '' ?></span>
         </div>
 
         <div class="summary-grid booking-index-summary">
@@ -110,6 +111,11 @@
                     </tbody>
                 </table>
             </div>
+            <?php
+            $paginationRoute = 'admin/tasks';
+            $paginationParams = [];
+            require BASE_PATH . '/app/views/partials/pagination.php';
+            ?>
         <?php endif; ?>
     </section>
 </div>

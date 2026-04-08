@@ -6,26 +6,28 @@ final class BookingController
 {
     private Booking $bookings;
     private Review $reviews;
-    private Payment $payments;
+    private HiringAgreement $agreements;
 
     public function __construct()
     {
         $this->bookings = new Booking();
         $this->reviews = new Review();
-        $this->payments = new Payment();
+        $this->agreements = new HiringAgreement();
     }
 
     public function index(): string
     {
         Auth::requireRole(['client', 'tasker', 'admin']);
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $pagination = pagination_params($page, 20);
 
-        $bookings = $this->bookings->forUser((int) Auth::id(), (string) Auth::role());
+        $bookings = $this->bookings->forUser((int) Auth::id(), (string) Auth::role(), $pagination['limit'], $pagination['offset']);
 
         return View::render('bookings/index', [
             'pageTitle' => 'Bookings',
             'bookings' => $bookings,
-            'paymentsByBooking' => $this->safePaymentsByBooking($bookings),
-            'paymentsEnabled' => payments_enabled(),
+            'agreementsByBooking' => $this->agreementsByBooking($bookings),
+            'pagination' => pagination_meta($page, $pagination['per_page'], $this->bookings->countForUser((int) Auth::id(), (string) Auth::role())),
         ]);
     }
 
@@ -52,8 +54,7 @@ final class BookingController
             'booking' => $booking,
             'reviews' => $this->reviews->forBooking($bookingId),
             'clientReview' => $this->reviews->findByBookingAndReviewer($bookingId, (int) Auth::id()),
-            'bookingPayment' => $this->safePaymentForBooking($bookingId),
-            'paymentsEnabled' => payments_enabled(),
+            'agreement' => $this->safeAgreementForBooking($bookingId),
         ]);
     }
 
@@ -78,26 +79,27 @@ final class BookingController
         redirect('bookings/show', ['id' => $bookingId]);
     }
 
-    private function safePaymentForBooking(int $bookingId): ?array
+    private function safeAgreementForBooking(int $bookingId): ?array
     {
         try {
-            return $this->payments->findLatestForBooking($bookingId);
+            return $this->agreements->findVisibleByBookingId($bookingId, (int) Auth::id(), (string) Auth::role());
         } catch (Throwable $exception) {
-            error_log('Booking payment lookup error: ' . $exception->getMessage());
+            error_log('Booking agreement lookup error: ' . $exception->getMessage());
 
             return null;
         }
     }
 
-    private function safePaymentsByBooking(array $bookings): array
+    private function agreementsByBooking(array $bookings): array
     {
         try {
-            return $this->payments->latestByBookingIds(array_map(
-                static fn (array $booking): int => (int) ($booking['id'] ?? 0),
-                $bookings
-            ));
+            return $this->agreements->findVisibleByBookingIds(
+                array_map(static fn (array $booking): int => (int) ($booking['id'] ?? 0), $bookings),
+                (int) Auth::id(),
+                (string) Auth::role()
+            );
         } catch (Throwable $exception) {
-            error_log('Booking list payment lookup error: ' . $exception->getMessage());
+            error_log('Booking list agreement lookup error: ' . $exception->getMessage());
 
             return [];
         }

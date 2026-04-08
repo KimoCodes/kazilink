@@ -6,6 +6,7 @@ $acceptedBids = array_values(array_filter($bids, static fn (array $bid): bool =>
 $rejectedBids = array_values(array_filter($bids, static fn (array $bid): bool => (string) $bid['status'] === 'rejected'));
 $lowestBidAmount = $bids !== [] ? min(array_map(static fn (array $bid): float => (float) $bid['amount'], $bids)) : null;
 $location = (string) $task['city'] . (!empty($task['region']) ? ', ' . (string) $task['region'] : '') . ', ' . (string) $task['country'];
+$agreement = is_array($agreement ?? null) ? $agreement : null;
 ?>
 <div class="container">
     <section class="task-detail-layout">
@@ -75,11 +76,48 @@ $location = (string) $task['city'] . (!empty($task['region']) ? ', ' . (string) 
                     <div>
                         <span class="eyebrow"><?= (string) $task['status'] === 'completed' ? 'Completed Booking' : 'Confirmed Booking' ?></span>
                         <h2><?= (string) $task['status'] === 'completed' ? 'This task has been completed.' : 'This task is booked and in progress.' ?></h2>
-                        <p><?= e((string) $booking['tasker_name']) ?> is the confirmed tasker on this job. Use the booking page for status, messaging, and review history.</p>
+                        <p><?= e((string) $booking['tasker_name']) ?> is the confirmed tasker on this job. Use the booking page for status, messaging, agreement review, and review history.</p>
                     </div>
                     <div class="button-group">
+                        <?php if ($agreement !== null): ?>
+                            <a class="button" href="<?= e(url_for('agreements/review', ['id' => (int) $agreement['id']])) ?>">Review Agreement</a>
+                        <?php endif; ?>
                         <a class="button button-secondary" href="<?= e(url_for('profile/view', ['id' => (int) $booking['tasker_id']])) ?>">View tasker profile</a>
                         <a class="button" href="<?= e(url_for('bookings/show', ['id' => (int) $booking['id']])) ?>">Open booking</a>
+                    </div>
+                </section>
+            <?php endif; ?>
+
+            <?php if ($agreement !== null): ?>
+                <section class="booking-section">
+                    <div class="section-head">
+                        <div>
+                            <h2>Hiring Agreement</h2>
+                            <p class="section-intro">Keep the task record and the legally-usable hiring agreement connected so you do not have to hunt through separate pages.</p>
+                        </div>
+                    </div>
+                    <div class="booking-payment-panel <?= (string) $agreement['status'] === 'accepted' ? 'booking-payment-panel-paid' : '' ?>">
+                        <div>
+                            <span class="sidebar-item-label">Agreement</span>
+                            <div class="booking-payment-status-row">
+                                <?php
+                                $status = (string) $agreement['status'];
+                                $label = agreement_status_label($status);
+                                require BASE_PATH . '/app/views/partials/status-badge.php';
+                                ?>
+                                <code class="entity-chip text-mono"><?= e((string) $agreement['agreement_uid']) ?></code>
+                                <strong><?= e(moneyRwf((float) ($booking['agreed_amount'] ?? $task['budget'] ?? 0))) ?></strong>
+                            </div>
+                            <p class="muted">
+                                Payment happens offline. This agreement captures the compensation rules if the client is unavailable, the tasker no-shows, payment is withheld, or the scope changes.
+                            </p>
+                        </div>
+                        <div class="button-group">
+                            <a class="button" href="<?= e(url_for('agreements/review', ['id' => (int) $agreement['id']])) ?>">Review Agreement</a>
+                            <?php if ((string) $agreement['status'] === 'accepted'): ?>
+                                <a class="button button-secondary" href="<?= e(url_for('agreements/download', ['id' => (int) $agreement['id']])) ?>">Download Agreement</a>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </section>
             <?php endif; ?>
@@ -122,6 +160,9 @@ $location = (string) $task['city'] . (!empty($task['region']) ? ', ' . (string) 
                                     <div class="button-group task-bid-badges">
                                         <?php if ($isLowestBid): ?>
                                             <span class="pill pill-success">Lowest bid</span>
+                                        <?php endif; ?>
+                                        <?php if (!empty($bid['tasker_badge_name'])): ?>
+                                            <span class="subscription-tier-badge"><?= e((string) $bid['tasker_badge_name']) ?></span>
                                         <?php endif; ?>
                                         <?php require BASE_PATH . '/app/views/partials/status-badge.php'; ?>
                                     </div>
@@ -210,7 +251,7 @@ $location = (string) $task['city'] . (!empty($task['region']) ? ', ' . (string) 
                 <span class="sidebar-item-label">Next best action</span>
                 <p class="muted">
                     <?php if ($booking !== null): ?>
-                        Open the booking to manage messages, completion, and reviews from the confirmed task thread.
+                        Open the booking to manage messages, agreement review, completion, and reviews from the confirmed task thread.
                     <?php elseif ($bids !== []): ?>
                         Compare the bids below and accept the tasker that feels strongest on fit, not just price.
                     <?php else: ?>

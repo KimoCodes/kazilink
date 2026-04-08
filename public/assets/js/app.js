@@ -203,4 +203,120 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+    var subscriptionStatusCard = document.querySelector('[data-subscription-status]');
+
+    if (subscriptionStatusCard) {
+        var statusUrl = subscriptionStatusCard.getAttribute('data-status-url');
+        var statusText = subscriptionStatusCard.querySelector('[data-subscription-status-text]');
+
+        function pollSubscriptionStatus() {
+            if (!statusUrl || !statusText) {
+                return;
+            }
+
+            window.fetch(statusUrl, {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            }).then(function (response) {
+                return response.json();
+            }).then(function (data) {
+                if (!data || !data.status) {
+                    return;
+                }
+
+                statusText.textContent = data.status;
+
+                if (data.status === 'successful') {
+                    window.location.reload();
+                }
+            }).catch(function () {
+                // Leave the pending state visible and allow manual refresh.
+            });
+        }
+
+        window.setInterval(pollSubscriptionStatus, 8000);
+        pollSubscriptionStatus();
+    }
+
+    var sessionTimeoutSeconds = Number(document.body.getAttribute('data-session-timeout-seconds') || '0');
+    var sessionHeartbeatSeconds = Number(document.body.getAttribute('data-session-heartbeat-seconds') || '0');
+    var sessionPingUrl = document.body.getAttribute('data-session-ping-url') || '';
+    var sessionLogoutForm = document.querySelector('[data-session-logout-form]');
+    var lastActivityAt = Date.now();
+    var activityEvents = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+
+    function noteActivity() {
+        lastActivityAt = Date.now();
+    }
+
+    function submitIdleLogout() {
+        if (!sessionLogoutForm || sessionLogoutForm.dataset.submitting === 'true') {
+            return;
+        }
+
+        sessionLogoutForm.dataset.submitting = 'true';
+
+        var reasonInput = sessionLogoutForm.querySelector('input[name="logout_reason"]');
+
+        if (reasonInput) {
+            reasonInput.value = 'idle_timeout';
+        }
+
+        sessionLogoutForm.submit();
+    }
+
+    function pingSession() {
+        if (!sessionPingUrl || document.visibilityState === 'hidden') {
+            return;
+        }
+
+        window.fetch(sessionPingUrl, {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json'
+            }
+        }).then(function (response) {
+            if (response.status === 401) {
+                window.location.reload();
+            }
+        }).catch(function () {
+            // Ignore transient heartbeat issues and let the next ping retry.
+        });
+    }
+
+    if (sessionTimeoutSeconds > 0 && sessionLogoutForm) {
+        activityEvents.forEach(function (eventName) {
+            document.addEventListener(eventName, noteActivity, { passive: true });
+        });
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') {
+                noteActivity();
+                pingSession();
+            }
+        });
+
+        window.setInterval(function () {
+            var idleForMs = Date.now() - lastActivityAt;
+
+            if (idleForMs >= (sessionTimeoutSeconds * 1000)) {
+                submitIdleLogout();
+            }
+        }, 10000);
+
+        if (sessionHeartbeatSeconds > 0 && sessionPingUrl) {
+            window.setInterval(function () {
+                var idleForMs = Date.now() - lastActivityAt;
+
+                if (idleForMs < (sessionTimeoutSeconds * 1000)) {
+                    pingSession();
+                }
+            }, sessionHeartbeatSeconds * 1000);
+
+            pingSession();
+        }
+    }
 });

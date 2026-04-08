@@ -2,12 +2,11 @@
 $statusCode = (int) ($statusCode ?? 200);
 $marketplaceStats = is_array($marketplaceStats ?? null) ? $marketplaceStats : [];
 $featuredCategories = is_array($featuredCategories ?? null) ? $featuredCategories : [];
-$plans = is_array($plans ?? null) ? $plans : array_values(pricing_plans());
-$paymentsEnabled = (bool) ($paymentsEnabled ?? payments_enabled());
 $openTasks = (int) ($marketplaceStats['open_tasks'] ?? 0);
 $activeTaskers = (int) ($marketplaceStats['active_taskers'] ?? 0);
 $activeClients = (int) ($marketplaceStats['active_clients'] ?? 0);
 $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
+$ads = is_array($ads ?? null) ? $ads : [];
 ?>
 <?php if ($statusCode !== 200): ?>
     <div class="container narrow">
@@ -27,13 +26,13 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
             <div class="hero-grid home-hero-grid">
                 <div class="hero-copy">
                     <span class="eyebrow">Professional local help</span>
-                    <h1>Book reliable support with less friction and more clarity.</h1>
-                    <p class="page-intro">Kazilink is designed for households and teams that want a clean workflow: clear requests, transparent pricing, one message thread per booking, and a checkout path that feels trustworthy instead of improvised.</p>
+                    <h1>Calm hiring for everyday work.</h1>
+                    <p class="page-intro">Kazilink gives households and teams a cleaner hiring flow: clear requests, MTN MoMo subscription access, transparent offline job payment expectations, one message thread per booking, and a hiring agreement that captures who was hired, for what work, and what happens if problems come up.</p>
 
                     <div class="hero-actions">
                         <?php if (!Auth::check()): ?>
                             <a class="button" href="<?= e(url_for('auth/register')) ?>">Create account</a>
-                            <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">View pricing</a>
+                            <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">See how protection works</a>
                         <?php elseif (($role ?? null) === 'client'): ?>
                             <a class="button" href="<?= e(url_for('tasks/create')) ?>">Post a task</a>
                             <a class="button button-secondary" href="<?= e(url_for('tasks/index')) ?>">Manage my tasks</a>
@@ -42,14 +41,20 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
                             <a class="button button-secondary" href="<?= e(url_for('tasker/dashboard')) ?>">Open dashboard</a>
                         <?php else: ?>
                             <a class="button" href="<?= e(url_for('admin/dashboard')) ?>">Open admin dashboard</a>
-                            <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">Review pricing</a>
+                            <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">Review protection flow</a>
                         <?php endif; ?>
                     </div>
 
+                    <div class="home-editorial-note">
+                        <span>Designed for clarity, trust, and quieter decision-making.</span>
+                    </div>
+
                     <div class="hero-proof">
-                        <span class="proof-pill"><strong>Secure Checkout</strong> via Stripe-hosted payment pages</span>
+                        <span class="proof-pill"><strong>Offline job payments</strong> with no client-to-tasker escrow on-platform</span>
+                        <span class="proof-pill"><strong>MTN MoMo subscriptions</strong> for monthly access and visibility</span>
+                        <span class="proof-pill"><strong>Hiring Agreement</strong> generated when a tasker is hired</span>
+                        <span class="proof-pill"><strong>Evidence-ready logs</strong> for disputes and scope changes</span>
                         <span class="proof-pill"><strong>Trust-first UX</strong> with practical copy and clear navigation</span>
-                        <span class="proof-pill"><strong>Single-thread bookings</strong> so job history stays readable</span>
                     </div>
                 </div>
 
@@ -57,7 +62,8 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
                     <article class="home-market-snapshot">
                         <div class="home-snapshot-head">
                             <span class="eyebrow">Live marketplace snapshot</span>
-                            <p>Real product signals from the current workspace, presented as a credibility layer instead of hype.</p>
+                            <h2>Current activity, presented without noise.</h2>
+                            <p>Real product signals from the current workspace, used as a credibility layer instead of hype.</p>
                         </div>
                         <div class="home-stats-grid">
                             <div class="home-stat-card">
@@ -94,12 +100,18 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
             </div>
         </section>
 
+        <?php
+        if ($ads !== []) {
+            require BASE_PATH . '/app/views/partials/ad-banner.php';
+        }
+        ?>
+
         <section class="panel panel-subtle">
             <div class="section-head">
                 <div>
                     <span class="eyebrow">Why it feels better</span>
-                    <h2>A cleaner information architecture for real-world service requests</h2>
-                    <p class="section-intro">The updated experience is organized around the questions people actually ask before they trust a platform: what it does, how much it costs, what happens next, and how to contact a real person.</p>
+                    <h2>A quieter interface for real-world service requests</h2>
+                    <p class="section-intro">The experience is organized around the questions people ask before they trust a platform: what it does, how much it costs, what happens next, and how to contact a real person.</p>
                 </div>
             </div>
             <div class="marketing-grid marketing-grid-three">
@@ -108,12 +120,12 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
                     <p class="muted">Visitors can move from overview to pricing to contact without guessing where conversion or support lives.</p>
                 </article>
                 <article class="feature-card feature-card-accent">
-                    <h3>Professional payment entry point</h3>
-                    <p class="muted">The pricing page routes directly into Stripe Checkout, using environment-based keys and hosted payment screens.</p>
+                    <h3>Credible hiring records</h3>
+                    <p class="muted">Once a client hires a tasker, the platform creates a hiring agreement that records scope, timing, compensation rules, and both acceptances.</p>
                 </article>
                 <article class="feature-card feature-card-accent">
                     <h3>Trust through specifics</h3>
-                    <p class="muted">Copy is grounded in what the platform already supports today, not feature promises that would weaken confidence.</p>
+                    <p class="muted">Copy is grounded in what the platform supports today: matching, MTN MoMo subscription billing, hiring records, and dispute evidence rather than job-payment escrow promises.</p>
                 </article>
             </div>
         </section>
@@ -122,8 +134,8 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
             <div class="section-head">
                 <div>
                     <span class="eyebrow">Popular services</span>
-                    <h2>Built for the kinds of local jobs people actually need solved</h2>
-                    <p class="section-intro">Use focused categories to keep task briefs concise, pricing cleaner, and responses more relevant.</p>
+                    <h2>Built for the local jobs people actually need solved</h2>
+                    <p class="section-intro">Focused categories keep task briefs concise, pricing cleaner, and responses more relevant.</p>
                 </div>
             </div>
 
@@ -164,14 +176,14 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
                 <div>
                     <span class="eyebrow">How it works</span>
                     <h2>A simple workflow from request to booking</h2>
-                    <p class="section-intro">Every step is explicit, so people know when they are browsing, when they are committing, and when they are paying.</p>
+                    <p class="section-intro">Every step is explicit, so people know when they are browsing, when they are committing, and what record exists if something later goes wrong.</p>
                 </div>
             </div>
             <div class="home-flow-grid">
                 <article class="feature-card">
                     <span class="home-step-index">01</span>
                     <h3>Start with a clear brief</h3>
-                    <p class="muted">Post a focused task with budget, category, city, and timing so the right taskers can respond quickly.</p>
+                    <p class="muted">Post a focused task with budget, category, city, and timing so the right taskers can respond quickly once subscription access is active.</p>
                 </article>
                 <article class="feature-card">
                     <span class="home-step-index">02</span>
@@ -180,8 +192,8 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
                 </article>
                 <article class="feature-card">
                     <span class="home-step-index">03</span>
-                    <h3>Pay and coordinate confidently</h3>
-                    <p class="muted">The refreshed pricing flow gives you a clean payment handoff while the booking workspace keeps the follow-up organized.</p>
+                    <h3>Hire, pay offline, and keep proof</h3>
+                    <p class="muted">When a bid is accepted, the platform creates a hiring agreement, records dual acceptance, and preserves an evidence trail for payment issues, no-shows, or scope changes.</p>
                 </article>
             </div>
         </section>
@@ -189,94 +201,27 @@ $activeCategories = (int) ($marketplaceStats['active_categories'] ?? 0);
         <section class="panel">
             <div class="section-head">
                 <div>
-                    <span class="eyebrow">Pricing overview</span>
-                    <h2>Concise plans with a secure route to pay</h2>
-                    <p class="section-intro">These one-time plans are designed as simple professional defaults. You can tune amounts and copy later without changing the flow.</p>
+                    <span class="eyebrow">Platform promise</span>
+                    <h2>Protection comes from records, not platform noise</h2>
+                    <p class="section-intro">The platform helps parties match, hire, and keep a trustworthy record. Job payment is arranged directly between client and tasker, while subscriptions are paid separately through MTN MoMo.</p>
                 </div>
                 <div class="page-actions">
-                    <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">Open full pricing</a>
-                </div>
-            </div>
-            <div class="pricing-grid">
-                <?php foreach ($plans as $plan): ?>
-                    <article class="pricing-card <?= !empty($plan['highlighted']) ? 'pricing-card-featured' : '' ?>">
-                        <div class="pricing-card-head">
-                            <div>
-                                <span class="pricing-badge"><?= e((string) ($plan['badge'] ?? 'Plan')) ?></span>
-                                <h3><?= e((string) $plan['name']) ?></h3>
-                                <p class="muted"><?= e((string) $plan['description']) ?></p>
-                            </div>
-                            <div class="pricing-amount">
-                                <strong><?= e(moneyRwf($plan['amount'])) ?></strong>
-                                <span><?= e((string) ($plan['billing_label'] ?? 'One-time payment')) ?></span>
-                            </div>
-                        </div>
-                        <ul class="check-list">
-                            <?php foreach ((array) ($plan['features'] ?? []) as $feature): ?>
-                                <li><?= e((string) $feature) ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <?php if ($paymentsEnabled): ?>
-                            <form method="post" action="<?= e(url_for('payments/checkout')) ?>">
-                                <?= Csrf::input() ?>
-                                <input type="hidden" name="plan_id" value="<?= e((string) $plan['id']) ?>">
-                                <button type="submit" class="button button-block"><?= e((string) ($plan['cta'] ?? 'Pay now')) ?></button>
-                            </form>
-                        <?php else: ?>
-                            <div class="setup-note">
-                                <strong>Stripe setup required</strong>
-                                <p class="muted">Add your Stripe keys in `.env` to enable live checkout buttons.</p>
-                            </div>
-                        <?php endif; ?>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-        </section>
-
-        <section class="panel panel-subtle">
-            <div class="section-head">
-                <div>
-                    <span class="eyebrow">Trust signals</span>
-                    <h2>Space for real proof, without pretending it already exists</h2>
-                    <p class="section-intro">These cards are ready for approved testimonials, partner logos, or case studies once you have them. For now, they stay honest and clearly framed.</p>
+                    <a class="button button-secondary" href="<?= e(url_for('marketing/pricing')) ?>">Open protection details</a>
                 </div>
             </div>
             <div class="marketing-grid marketing-grid-three">
-                <article class="quote-card">
-                    <p>“Add your first verified client quote here after launch.”</p>
-                    <span>Placeholder testimonial slot</span>
+                <article class="feature-card">
+                    <h3>Match and hire</h3>
+                    <p class="muted">Clients post tasks, compare bids, and choose the tasker they want to hire through the marketplace flow.</p>
                 </article>
-                <article class="quote-card">
-                    <p>“Add a tasker quote about clarity, trust, or better communication.”</p>
-                    <span>Placeholder testimonial slot</span>
+                <article class="feature-card">
+                    <h3>Generate an agreement</h3>
+                    <p class="muted">The platform produces a hiring agreement with scope, location, timing, offline payment terms, compensation rules, and signature timestamps.</p>
                 </article>
-                <article class="quote-card">
-                    <p>“Add a business or household use case with measurable value.”</p>
-                    <span>Placeholder case study slot</span>
+                <article class="feature-card">
+                    <h3>Preserve evidence</h3>
+                    <p class="muted">If payment fails, the client is unavailable, the tasker does not show, or the scope changes, the agreement and log history create a reliable record.</p>
                 </article>
-            </div>
-        </section>
-
-        <section class="panel">
-            <div class="section-head">
-                <div>
-                    <span class="eyebrow">FAQs</span>
-                    <h2>Short answers to the questions people ask before they engage</h2>
-                </div>
-            </div>
-            <div class="faq-list">
-                <details class="faq-item">
-                    <summary>Do I need an account before using the platform?</summary>
-                    <p>You can browse the public marketing pages first, but you need an account to post tasks, browse as a tasker, or manage bookings.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>How does payment work?</summary>
-                    <p>The pricing page starts a Stripe Checkout session. Payment happens on Stripe-hosted pages, not inside your own form fields.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Can I still talk to someone before paying?</summary>
-                    <p>Yes. The contact page is meant for support questions, partnership requests, and operational follow-up.</p>
-                </details>
             </div>
         </section>
     </div>

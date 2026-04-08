@@ -4,6 +4,8 @@
         $activeUsers = array_values(array_filter($users, static fn (array $user): bool => (int) $user['is_active'] === 1));
         $inactiveUsers = array_values(array_filter($users, static fn (array $user): bool => (int) $user['is_active'] !== 1));
         $taskers = array_values(array_filter($users, static fn (array $user): bool => (string) $user['role'] === 'tasker'));
+        $onlineUsers = array_values(array_filter($users, static fn (array $user): bool => is_user_online($user)));
+        $pagination = is_array($pagination ?? null) ? $pagination : ['total' => count($users), 'page' => 1, 'total_pages' => 1];
         ?>
         <?php
         $title = 'Manage Users';
@@ -19,7 +21,7 @@
                 <h2>All Users</h2>
                 <p class="muted">Review account health, role mix, and tasker performance at a glance.</p>
             </div>
-            <span class="pill pill-info"><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
+            <span class="pill pill-info"><?= e((string) ($pagination['total'] ?? count($users))) ?> user<?= (int) ($pagination['total'] ?? count($users)) !== 1 ? 's' : '' ?></span>
         </div>
 
         <div class="summary-grid booking-index-summary">
@@ -44,6 +46,13 @@
                     <span>Profiles available for work discovery and booking</span>
                 </div>
             </article>
+            <article class="info-card task-summary-card">
+                <span class="sidebar-item-label">Online now</span>
+                <div class="task-summary-metric-row">
+                    <strong><?= e((string) count($onlineUsers)) ?></strong>
+                    <span>Seen within the last <?= e((string) floor(session_presence_window_seconds() / 60)) ?> minutes</span>
+                </div>
+            </article>
         </div>
 
         <?php if ($users === []): ?>
@@ -65,7 +74,10 @@
                             <th>Avg Rating</th>
                             <th>Reviews</th>
                             <th>Status</th>
+                            <th>Presence</th>
                             <th>Last Login</th>
+                            <th>Last Seen</th>
+                            <th>Subscription</th>
                             <th>Action</th>
                         </tr>
                     </thead>
@@ -99,7 +111,21 @@
                                     ?>
                                 </td>
                                 <td>
+                                    <?php
+                                    $status = is_user_online($user) ? 'active' : 'inactive';
+                                    $label = is_user_online($user) ? 'Online' : 'Offline';
+                                    require BASE_PATH . '/app/views/partials/status-badge.php';
+                                    ?>
+                                </td>
+                                <td>
                                     <?= !empty($user['last_login_at']) ? e(dateFmt((string) $user['last_login_at'])) : '<span class="text-muted">Never</span>' ?>
+                                </td>
+                                <td>
+                                    <?= !empty($user['last_seen_at']) ? e(dateFmt((string) $user['last_seen_at'])) : '<span class="text-muted">Never</span>' ?>
+                                </td>
+                                <td>
+                                    <strong><?= e((string) ($user['current_plan_name'] ?? 'Basic')) ?></strong><br>
+                                    <span class="muted"><?= e((string) ($user['subscription_status'] ?? 'none')) ?></span>
                                 </td>
                                 <td>
                                     <div class="table-actions">
@@ -121,6 +147,11 @@
                     </tbody>
                 </table>
             </div>
+            <?php
+            $paginationRoute = 'admin/users';
+            $paginationParams = [];
+            require BASE_PATH . '/app/views/partials/pagination.php';
+            ?>
         <?php endif; ?>
     </section>
 </div>

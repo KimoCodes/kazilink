@@ -27,10 +27,25 @@ final class Profile
                 p.bio,
                 p.avatar_path,
                 p.skills_summary,
+                COALESCE(plan_summary.plan_name, "Basic Trial") AS current_plan_name,
+                plan_summary.badge_name AS current_badge_name,
                 p.created_at,
                 p.updated_at
             FROM users u
             LEFT JOIN profiles p ON p.user_id = u.id
+            LEFT JOIN (
+                SELECT
+                    s.user_id,
+                    p2.name AS plan_name,
+                    p2.badge_name
+                FROM subscriptions s
+                INNER JOIN plans p2 ON p2.id = COALESCE(s.active_plan_id, s.plan_id)
+                INNER JOIN (
+                    SELECT user_id, MAX(id) AS max_id
+                    FROM subscriptions
+                    GROUP BY user_id
+                ) latest ON latest.max_id = s.id
+            ) AS plan_summary ON plan_summary.user_id = u.id
             WHERE u.id = :user_id
             LIMIT 1
         ');

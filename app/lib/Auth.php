@@ -5,20 +5,47 @@ declare(strict_types=1);
 final class Auth
 {
     private static bool $loggedOutForInactiveAccount = false;
+    private static bool $loggedOutForIdleSession = false;
+    private static ?array $resolvedUser = null;
+    private static bool $hasResolvedUser = false;
 
     public static function user(): ?array
     {
+        if (self::$hasResolvedUser) {
+            return self::$resolvedUser;
+        }
+
         $sessionUser = Session::get('auth_user');
 
         if (!is_array($sessionUser) || !isset($sessionUser['id'])) {
+            self::$resolvedUser = null;
+            self::$hasResolvedUser = true;
+
             return null;
         }
 
-        $freshUser = (new User())->findById((int) $sessionUser['id']);
+        $userId = (int) $sessionUser['id'];
+
+        if (self::hasExpiredIdleSession()) {
+            (new User())->recordLogout($userId);
+            self::$loggedOutForIdleSession = true;
+            Session::invalidate();
+            self::$resolvedUser = null;
+            self::$hasResolvedUser = true;
+
+            return null;
+        }
+
+        $freshUser = (new User())->findById($userId);
 
         if ($freshUser === null || !(bool) $freshUser['is_active']) {
+            (new User())->recordLogout($userId);
             self::$loggedOutForInactiveAccount = true;
             Session::invalidate();
+
+            self::$resolvedUser = null;
+            self::$hasResolvedUser = true;
+
             return null;
         }
 
@@ -30,8 +57,11 @@ final class Auth
         ];
 
         Session::put('auth_user', $normalizedUser);
+        self::touchSessionActivity($userId);
+        self::$resolvedUser = $normalizedUser;
+        self::$hasResolvedUser = true;
 
-        return $normalizedUser;
+        return self::$resolvedUser;
     }
 
     public static function check(): bool
@@ -56,17 +86,35 @@ final class Auth
     public static function login(array $user): void
     {
         Session::regenerate();
-        Session::put('auth_user', [
+        self::$loggedOutForInactiveAccount = false;
+        self::$loggedOutForIdleSession = false;
+        $normalizedUser = [
             'id' => (int) $user['id'],
             'email' => (string) $user['email'],
             'role' => (string) $user['role'],
             'full_name' => (string) ($user['full_name'] ?? ''),
-        ]);
+        ];
+        Session::put('auth_user', $normalizedUser);
+        Session::put('last_activity_at', time());
+        Session::put('last_presence_write_at', 0);
+        self::$resolvedUser = $normalizedUser;
+        self::$hasResolvedUser = true;
+        self::touchSessionActivity((int) $user['id']);
     }
 
     public static function logout(): void
     {
+        $sessionUser = Session::get('auth_user');
+
+        if (is_array($sessionUser) && isset($sessionUser['id'])) {
+            (new User())->recordLogout((int) $sessionUser['id']);
+        }
+
         Session::invalidate();
+        self::$resolvedUser = null;
+        self::$hasResolvedUser = true;
+        self::$loggedOutForInactiveAccount = false;
+        self::$loggedOutForIdleSession = false;
     }
 
     public static function requireLogin(): void
@@ -76,6 +124,10 @@ final class Auth
                 Session::start();
                 Session::flash('error', 'Your session has ended because your account is inactive. Please log in again.');
                 self::$loggedOutForInactiveAccount = false;
+            } elseif (self::$loggedOutForIdleSession) {
+                Session::start();
+                Session::flash('error', 'Your session ended after being inactive for too long. Please log in again.');
+                self::$loggedOutForIdleSession = false;
             } else {
                 Session::flash('error', 'Please log in to continue.');
             }
@@ -101,6 +153,30 @@ final class Auth
     {
         if (self::check()) {
             redirect('home/index');
+        }
+    }
+
+    private static function hasExpiredIdleSession(): bool
+    {
+        $lastActivityAt = Session::get('last_activity_at');
+
+        if (!is_int($lastActivityAt)) {
+            return false;
+        }
+
+        return $lastActivityAt < (time() - session_idle_timeout_seconds());
+    }
+
+    private static function touchSessionActivity(int $userId): void
+    {
+        $now = time();
+        Session::put('last_activity_at', $now);
+
+        $lastPresenceWriteAt = Session::get('last_presence_write_at');
+
+        if (!is_int($lastPresenceWriteAt) || $lastPresenceWriteAt <= ($now - session_heartbeat_interval_seconds())) {
+            (new User())->touchPresence($userId);
+            Session::put('last_presence_write_at', $now);
         }
     }
 }

@@ -15,6 +15,8 @@ CREATE TABLE users (
     failed_login_attempts INT UNSIGNED NOT NULL DEFAULT 0,
     last_failed_login_at DATETIME NULL,
     last_login_at DATETIME NULL,
+    last_seen_at DATETIME NULL,
+    last_logout_at DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -158,7 +160,7 @@ CREATE TABLE reviews (
 CREATE TABLE admin_audit (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     admin_user_id INT UNSIGNED NOT NULL,
-    target_type ENUM('user', 'task') NOT NULL,
+    target_type ENUM('user', 'task', 'dispute', 'plan', 'promo_code', 'subscription', 'momo_transaction', 'setting', 'momo_webhook_log') NOT NULL,
     target_id INT UNSIGNED NOT NULL,
     action VARCHAR(100) NOT NULL,
     notes VARCHAR(255) NULL,
@@ -167,6 +169,163 @@ CREATE TABLE admin_audit (
         FOREIGN KEY (admin_user_id) REFERENCES users(id)
         ON DELETE CASCADE,
     KEY idx_admin_audit_target (target_type, target_id)
+);
+
+CREATE TABLE app_settings (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    setting_key VARCHAR(120) NOT NULL UNIQUE,
+    setting_value TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE plans (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    slug VARCHAR(60) NOT NULL UNIQUE,
+    name VARCHAR(120) NOT NULL,
+    price_rwf INT UNSIGNED NOT NULL,
+    visibility_level INT UNSIGNED NOT NULL DEFAULT 1,
+    max_applications_per_day INT UNSIGNED NOT NULL DEFAULT 5,
+    priority_level INT UNSIGNED NOT NULL DEFAULT 1,
+    job_alert_delay_minutes INT NOT NULL DEFAULT 10,
+    max_active_jobs INT UNSIGNED NOT NULL DEFAULT 1,
+    commission_discount DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    badge_name VARCHAR(120) NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_plans_active (active),
+    KEY idx_plans_visibility (visibility_level),
+    KEY idx_plans_priority (priority_level)
+);
+
+CREATE TABLE subscriptions (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    plan_id INT UNSIGNED NOT NULL,
+    active_plan_id INT UNSIGNED NULL,
+    pending_plan_id INT UNSIGNED NULL,
+    status ENUM('trialing', 'active', 'past_due', 'cancelled') NOT NULL DEFAULT 'trialing',
+    trial_ends_at DATETIME NULL,
+    current_period_ends_at DATETIME NULL,
+    momo_reference VARCHAR(120) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_subscriptions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_subscriptions_plan
+        FOREIGN KEY (plan_id) REFERENCES plans(id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_subscriptions_active_plan
+        FOREIGN KEY (active_plan_id) REFERENCES plans(id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_subscriptions_pending_plan
+        FOREIGN KEY (pending_plan_id) REFERENCES plans(id)
+        ON DELETE SET NULL,
+    KEY idx_subscriptions_user (user_id),
+    KEY idx_subscriptions_status (status),
+    KEY idx_subscriptions_period_end (current_period_ends_at),
+    KEY idx_subscriptions_trial_end (trial_ends_at),
+    KEY idx_subscriptions_active_plan (active_plan_id),
+    KEY idx_subscriptions_pending_plan (pending_plan_id)
+);
+
+CREATE TABLE promo_codes (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(60) NOT NULL UNIQUE,
+    type ENUM('percent', 'fixed_rwf') NOT NULL,
+    amount INT UNSIGNED NOT NULL,
+    max_redemptions INT UNSIGNED NULL,
+    expires_at DATETIME NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_promo_codes_active (active),
+    KEY idx_promo_codes_expires (expires_at)
+);
+
+CREATE TABLE promo_code_users (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    promo_code_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_promo_code_users_code
+        FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_promo_code_users_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_promo_code_users_code_user (promo_code_id, user_id),
+    KEY idx_promo_code_users_user (user_id)
+);
+
+CREATE TABLE promo_redemptions (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    promo_code_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    redeemed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_promo_redemptions_code
+        FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_promo_redemptions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_promo_redemptions_code_user (promo_code_id, user_id),
+    KEY idx_promo_redemptions_user (user_id)
+);
+
+CREATE TABLE momo_transactions (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    purpose ENUM('subscription') NOT NULL DEFAULT 'subscription',
+    amount_rwf INT UNSIGNED NOT NULL,
+    external_ref VARCHAR(120) NOT NULL,
+    status ENUM('pending', 'successful', 'failed') NOT NULL DEFAULT 'pending',
+    raw_payload_json LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_momo_transactions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_momo_transactions_external_ref (external_ref),
+    KEY idx_momo_transactions_user (user_id),
+    KEY idx_momo_transactions_status (status),
+    KEY idx_momo_transactions_created (created_at),
+    KEY idx_momo_transactions_user_status (user_id, status)
+);
+
+CREATE TABLE momo_webhook_logs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    external_ref VARCHAR(120) NULL,
+    request_ip VARCHAR(120) NOT NULL,
+    decision ENUM('accepted', 'blocked_secret', 'blocked_ip', 'invalid_payload') NOT NULL,
+    headers_json LONGTEXT NULL,
+    payload_json LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_momo_webhook_logs_ref (external_ref),
+    KEY idx_momo_webhook_logs_decision (decision),
+    KEY idx_momo_webhook_logs_created (created_at)
+);
+
+CREATE TABLE subscription_notifications (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    notification_type ENUM('subscription_past_due_reminder') NOT NULL,
+    channel ENUM('email_stub') NOT NULL DEFAULT 'email_stub',
+    reference_key VARCHAR(120) NOT NULL,
+    status ENUM('queued', 'sent') NOT NULL DEFAULT 'queued',
+    payload_json LONGTEXT NULL,
+    scheduled_for DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_subscription_notifications_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_subscription_notifications_unique (user_id, notification_type, reference_key),
+    KEY idx_subscription_notifications_status (status),
+    KEY idx_subscription_notifications_scheduled (scheduled_for)
 );
 
 CREATE TABLE payments (
@@ -207,4 +366,156 @@ CREATE TABLE payments (
     KEY idx_payments_task (task_id),
     KEY idx_payments_status (status),
     KEY idx_payments_created (created_at)
+);
+
+CREATE TABLE hiring_agreements (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    agreement_uid VARCHAR(32) NOT NULL,
+    booking_id INT UNSIGNED NOT NULL,
+    task_id INT UNSIGNED NOT NULL,
+    client_user_id INT UNSIGNED NOT NULL,
+    tasker_user_id INT UNSIGNED NOT NULL,
+    job_title VARCHAR(180) NOT NULL,
+    job_description TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    location_text VARCHAR(255) NOT NULL,
+    start_datetime DATETIME NULL,
+    expected_duration VARCHAR(120) NULL,
+    offline_payment_terms_text TEXT NOT NULL,
+    compensation_terms_text TEXT NOT NULL,
+    cancellation_terms_text TEXT NOT NULL,
+    dispute_window_hours INT UNSIGNED NOT NULL DEFAULT 48,
+    status ENUM('draft', 'pending_acceptance', 'accepted', 'cancelled', 'disputed') NOT NULL DEFAULT 'pending_acceptance',
+    client_accepted_at DATETIME NULL,
+    tasker_accepted_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_hiring_agreements_booking
+        FOREIGN KEY (booking_id) REFERENCES bookings(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_hiring_agreements_task
+        FOREIGN KEY (task_id) REFERENCES tasks(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_hiring_agreements_client
+        FOREIGN KEY (client_user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_hiring_agreements_tasker
+        FOREIGN KEY (tasker_user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_hiring_agreements_uid (agreement_uid),
+    UNIQUE KEY uq_hiring_agreements_booking (booking_id),
+    KEY idx_hiring_agreements_task (task_id),
+    KEY idx_hiring_agreements_status (status),
+    KEY idx_hiring_agreements_client (client_user_id),
+    KEY idx_hiring_agreements_tasker (tasker_user_id),
+    KEY idx_hiring_agreements_booking_status (booking_id, status)
+);
+
+CREATE TABLE agreement_events (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    agreement_id INT UNSIGNED NOT NULL,
+    actor_user_id INT UNSIGNED NULL,
+    event_type VARCHAR(100) NOT NULL,
+    event_json LONGTEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_agreement_events_agreement
+        FOREIGN KEY (agreement_id) REFERENCES hiring_agreements(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_agreement_events_actor
+        FOREIGN KEY (actor_user_id) REFERENCES users(id)
+        ON DELETE SET NULL,
+    KEY idx_agreement_events_agreement (agreement_id),
+    KEY idx_agreement_events_event_type (event_type),
+    KEY idx_agreement_events_created (created_at)
+);
+
+CREATE TABLE disputes (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    agreement_id INT UNSIGNED NOT NULL,
+    reporter_user_id INT UNSIGNED NOT NULL,
+    type ENUM('non_payment', 'client_unavailable', 'tasker_no_show', 'scope_change', 'unsafe', 'other') NOT NULL,
+    description TEXT NOT NULL,
+    status ENUM('open', 'under_review', 'resolved', 'rejected') NOT NULL DEFAULT 'open',
+    admin_notes TEXT NULL,
+    admin_updated_by INT UNSIGNED NULL,
+    resolved_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_disputes_agreement
+        FOREIGN KEY (agreement_id) REFERENCES hiring_agreements(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_disputes_reporter
+        FOREIGN KEY (reporter_user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_disputes_admin_updated_by
+        FOREIGN KEY (admin_updated_by) REFERENCES users(id)
+        ON DELETE SET NULL,
+    KEY idx_disputes_agreement (agreement_id),
+    KEY idx_disputes_reporter (reporter_user_id),
+    KEY idx_disputes_admin_updated_by (admin_updated_by),
+    KEY idx_disputes_status (status)
+);
+
+CREATE TABLE product_listings (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    seller_id INT UNSIGNED NOT NULL,
+    title VARCHAR(180) NOT NULL,
+    description TEXT NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    region VARCHAR(100) NULL,
+    country VARCHAR(100) NOT NULL,
+    starting_price DECIMAL(10,2) NOT NULL,
+    status ENUM('open', 'sold', 'cancelled', 'deactivated') NOT NULL DEFAULT 'open',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_product_listings_seller
+        FOREIGN KEY (seller_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    KEY idx_product_listings_status (status),
+    KEY idx_product_listings_city (city),
+    KEY idx_product_listings_seller (seller_id),
+    KEY idx_product_listings_active_created (is_active, status, created_at, id)
+);
+
+CREATE TABLE product_bids (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    listing_id INT UNSIGNED NOT NULL,
+    buyer_id INT UNSIGNED NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    message TEXT NULL,
+    status ENUM('pending', 'selected', 'rejected', 'withdrawn') NOT NULL DEFAULT 'pending',
+    selected_listing_lock INT UNSIGNED GENERATED ALWAYS AS (CASE WHEN status = 'selected' THEN listing_id ELSE NULL END) STORED,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_product_bids_listing
+        FOREIGN KEY (listing_id) REFERENCES product_listings(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_product_bids_buyer
+        FOREIGN KEY (buyer_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    UNIQUE KEY uq_product_bids_listing_buyer (listing_id, buyer_id),
+    UNIQUE KEY uq_product_bids_one_selected (selected_listing_lock),
+    KEY idx_product_bids_status (status),
+    KEY idx_product_bids_listing (listing_id),
+    KEY idx_product_bids_buyer (buyer_id),
+    KEY idx_product_bids_listing_status_amount (listing_id, status, amount, id)
+);
+
+CREATE TABLE ads (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(180) NOT NULL,
+    body TEXT NOT NULL,
+    media_type ENUM('image', 'video') NULL,
+    media_path VARCHAR(255) NULL,
+    cta_label VARCHAR(80) NULL,
+    cta_url VARCHAR(255) NULL,
+    placement ENUM('home', 'marketplace') NOT NULL DEFAULT 'home',
+    sort_order INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_ads_placement (placement),
+    KEY idx_ads_active (is_active),
+    KEY idx_ads_sort (sort_order)
 );

@@ -44,6 +44,7 @@ final class AuthController
             }
 
             $this->users->createWithProfile([
+                'create_trial_subscription' => true,
                 'email' => (string) $input['email'],
                 'password_hash' => password_hash((string) $input['password'], PASSWORD_DEFAULT),
                 'role' => (string) $input['role'],
@@ -130,10 +131,37 @@ final class AuthController
     {
         verifyPostRequest('home/index');
 
+        $logoutReason = trim((string) ($_POST['logout_reason'] ?? ''));
         Auth::logout();
         Session::start();
-        Session::flash('success', 'You have been logged out.');
+
+        if ($logoutReason === 'idle_timeout') {
+            Session::flash('success', 'You were logged out after a long period of inactivity.');
+        } else {
+            Session::flash('success', 'You have been logged out.');
+        }
+
         redirect('home/index');
+    }
+
+    public function ping(): string
+    {
+        header('Content-Type: application/json');
+
+        if (!Auth::check()) {
+            http_response_code(401);
+
+            return json_encode([
+                'authenticated' => false,
+            ], JSON_THROW_ON_ERROR);
+        }
+
+        return json_encode([
+            'authenticated' => true,
+            'idle_timeout_seconds' => session_idle_timeout_seconds(),
+            'presence_window_seconds' => session_presence_window_seconds(),
+            'server_time' => date(DATE_ATOM),
+        ], JSON_THROW_ON_ERROR);
     }
 
     private function renderRegister(array $errors = [], array $fieldErrors = []): string
